@@ -30,6 +30,7 @@ void StartServer(std::shared_ptr<Server> server);
 //TO DO: Allow the administrator to have the ServerManager listen on multiple ports (and how many?).
 //TO DO: Throw error from Run() if WSA is not initialized?
 //TO DO: Determine if it is necessary to provide a mutex for Run().
+//TO DO: Change any FILE uses to fstream.
 class ServerManager
 {
 private:
