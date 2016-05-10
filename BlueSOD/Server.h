@@ -49,6 +49,7 @@ struct ClientInfo
 //and will pass it off to the Server, which lies in its own thread. The Server then will handle
 //the communication between clients. This design allows the Server to handle only one type of
 //communication.
+//TO DO: Almost everything.
 class Server
 {
 private:
