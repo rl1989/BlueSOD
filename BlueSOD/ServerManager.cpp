@@ -115,7 +115,9 @@ void ServerManager::Run(ServerState state)
 			string error = string();
 			error += time(nullptr);
 			error += " OpenSSL is not initialized.";
-			LogError(CONNECTION_ERROR_FILE, error.c_str());
+			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+			fileName += CONNECTION_ERROR_FILE;
+			LogError(fileName, error);
 		}
 		//WSA is not available. Cannot proceed without WSA.
 		//Will probably end up throwing an error here if WSA is not available.
@@ -124,7 +126,9 @@ void ServerManager::Run(ServerState state)
 			string error = string();
 			error += time(nullptr);
 			error += " WSA is not initialized.";
-			LogError(CONNECTION_ERROR_FILE, error.c_str());
+			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+			fileName += CONNECTION_ERROR_FILE;
+			LogError(fileName, error);
 			return;
 		}
 	}
@@ -137,8 +141,18 @@ void ServerManager::Run(ServerState state)
 	}
 
 	SetState(state);
-	while (GetState() == ServerState::RUNNING)
+	ServerState curState = GetState();
+	while (curState != ServerState::OFF || curState != ServerState::NOT_ACCEPTING_CONNECTIONS)
 	{
+		if (curState == ServerState::RESET)
+		{
+			/*
+				TO DO list:
+				  1) Deallocate current socket.
+				  2) Create new socket.
+				  3) Send message to clients with new port number.
+			*/
+		}
 		//Open and accept connections
 		if (OpenForConnections(GetPortNumber()))
 		{
@@ -148,7 +162,9 @@ void ServerManager::Run(ServerState state)
 				errorMessage += time(nullptr);
 				errorMessage += " There was a problem on port ";
 				errorMessage += GetPortNumber();
-				LogError(CONNECTION_ERROR_FILE, errorMessage.c_str());
+				string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+				fileName += CONNECTION_ERROR_FILE;
+				LogError(fileName, errorMessage);
 			}
 			//The incoming connection was accepted so add the client connection and SSL
 			//information to the Server (and, additionally, create the Server if necessary).
@@ -167,6 +183,8 @@ void ServerManager::Run(ServerState state)
 		{
 			StopAcceptingConnections();
 		}
+
+		curState = GetState();
 	}
 	if (GetState() == ServerState::OFF)
 	{
@@ -217,9 +235,11 @@ void ServerManager::SetPortNumber(int port)
 	m_portMutex.lock_shared();
 	m_portNumber = port;
 	m_portMutex.unlock_shared();
+
 	if (GetState() == ServerState::RUNNING)
 	{
-		//TO DO: Send a reset connection along with the new port number to clients
+		//Signal to reset connections.
+		SetState(ServerState::RESET);
 	}
 }
 
@@ -239,7 +259,9 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not create the listening socket for ServerManager.";
-		LogError(CONNECTION_ERROR_FILE, error.c_str());
+		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+		fileName += CONNECTION_ERROR_FILE;
+		LogError(fileName, error);
 		return INVALID_SOCKET;
 	}
 
@@ -249,7 +271,9 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not bind socket " + static_cast<int>(socket);
-		LogError(CONNECTION_ERROR_FILE, error.c_str());
+		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+		fileName += CONNECTION_ERROR_FILE;
+		LogError(fileName, error);
 		closesocket(socket);
 		return INVALID_SOCKET;
 	}
@@ -260,7 +284,9 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not listen on socket " + static_cast<int>(socket);
-		LogError(CONNECTION_ERROR_FILE, error.c_str());
+		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+		fileName += CONNECTION_ERROR_FILE;
+		LogError(fileName, error);
 		closesocket(socket);
 		return INVALID_SOCKET;
 	}
@@ -359,7 +385,9 @@ bool ServerManager::InitWSA()
 		error += time(nullptr);
 		error += " WSAStartup failed with error: ";
 		error += result;
-		LogError(CONNECTION_ERROR_FILE, error);
+		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+		fileName += CONNECTION_ERROR_FILE;
+		LogError(fileName, error);
 		CleanupWSA();
 		return m_bWSA = false;
 	}
