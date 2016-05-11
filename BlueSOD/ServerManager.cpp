@@ -212,17 +212,6 @@ int ServerManager::GetPortNumber()
 	return port;
 }
 
-list<int> ServerManager::GetPortNumbers()
-{
-	list<int> portList;
-
-	m_portMutex.lock_shared();
-	portList = list<int>(m_portNumbers);
-	m_portMutex.unlock_shared();
-
-	return portList;
-}
-
 void ServerManager::SetPortNumber(int port)
 {
 	m_portMutex.lock_shared();
@@ -232,38 +221,6 @@ void ServerManager::SetPortNumber(int port)
 	{
 		//TO DO: Send a reset connection along with the new port number to clients
 	}
-}
-
-bool ServerManager::AddAPort(int port)
-{
-	m_portMutex.lock_shared();
-	for (int portNumber : m_portNumbers)
-	{
-		if (portNumber == port)
-		{
-			m_portMutex.unlock_shared();
-			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-			fileName += CONNECTION_ERROR_FILE;
-			string message = string();
-			message += time(nullptr);
-			message += " Port ";
-			message += port;
-			message += " is already in use. ";
-			LogError(fileName, message);
-			return false;
-		}
-	}
-	m_portNumbers.push_back(port);
-	m_portMutex.unlock_shared();
-
-	bool socketCreated = AddAListener(port);
-	if (!socketCreated)
-	{
-		m_portMutex.lock_shared();
-		m_portNumbers.remove(port);
-		m_portMutex.unlock_shared();
-	}
-	return socketCreated;
 }
 
 SOCKET ServerManager::CreateSocket(int port)
@@ -309,24 +266,6 @@ SOCKET ServerManager::CreateSocket(int port)
 	}
 
 	return socket;
-}
-
-void ServerManager::AddListenerSocket(SOCKET socket)
-{
-	m_socketMutex.lock_shared();
-	m_listenerSockets.push_back(socket);
-	m_socketMutex.unlock_shared();
-}
-
-bool ServerManager::AddAListener(int port)
-{
-	SOCKET listener = CreateSocket(port);
-	bool res = listener != INVALID_SOCKET;
-	if (res)
-	{
-		AddListenerSocket(listener);
-	}
-	return res;
 }
 
 SSL_CTX* ServerManager::CreateSSLContext()
@@ -442,7 +381,7 @@ void ServerManager::LogSSLError(const std::string& fileName)
 
 void ServerManager::LogError(const std::string& fileName, const std::string& errorMessage)
 {
-	FILE* err = fopen(fileName, "w");
+	FILE* err = fopen(fileName.c_str(), "w");
 	//Log the error. Might be best to change this to C++ style to avoid any future issues.
 	fputs(errorMessage.c_str(), err);
 	fclose(err);

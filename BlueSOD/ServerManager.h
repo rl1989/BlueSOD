@@ -4,7 +4,10 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <iostream>
+#include <fstream>
 #include <thread>
+#include <list>
+#include <vector>
 #include "Server.h"
 #include "ServerConcurrency.h"
 #include "CommonServer.h"
@@ -19,6 +22,7 @@
 #define PRIVATE_KEY_FILE "ricky-anthony.asuscomm.com.key.pem"
 //Locations of error files
 #define SSL_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
+#define CONNECTION_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
 #define SSL_ERROR_FILE "SSLServerErrors.txt"
 #define PASSWORD_FILE "password.txt"
 #define CONNECTION_ERROR_FILE "ConnectionErrors.txt"
@@ -26,15 +30,25 @@
 //Will be used to start the server. The function is passed off to std::thread with the server as an argument.
 void StartServer(std::shared_ptr<Server> server);
 
+/*
+	The ServerManager will manage initial connections. That is, when it receives a connection request from
+	a client for the first time, it will handle the user authentication. If the user is authorized, ServerManager
+	will pass off the connection to a Server object which will then handle the messages sent between clients.
 
+	The ServerManager will be established on its own thread, as not to impose any delays on message delivery.
+	Ideally, it will be hosted on its own machine and then it will communicate with the Server on a different
+	machine.
+*/
 //TO DO: Allow the administrator to have the ServerManager listen on multiple ports (and how many?).
 //TO DO: Throw error from Run() if WSA is not initialized?
 //TO DO: Determine if it is necessary to provide a mutex for Run().
 //TO DO: Change any FILE uses to fstream.
+//TO DO: Changed shared_mutex to unique_mutex. I do not foresee sharing these mutexes between threads.
+//       This can always be changed in the future.
 class ServerManager
 {
 private:
-	//The socket that the ServerManager listens to connections on.
+	//The socket that the ServerManager listens for connections on.
 	SOCKET m_listenerSocket;
 	//The port ServerManager will be listening on.
 	int m_portNumber;
@@ -123,6 +137,7 @@ private:
 	//  true  - Listening on port.
 	//  false - An error occurred. Must consult WSA for error information.
 	bool OpenForConnections(int port);
+
 	//Accept an incoming connection.
 	//Return value:
 	//  The socket of the accepted connection (i.e. the client).
@@ -175,6 +190,22 @@ private:
 	//  const std::string& fileName - The location of the file to write errorMessage.
 	//  const std::string& errorMessage - The error.
 	void LogError(const std::string& fileName, const std::string& errorMessage);
+	/*
+		Log connections into fileName.
+		Arguments:
+		  const std::string& fileName - The location of the file to write message.
+		  const std::string& message - The message sent by ip.
+		  int ip - The ip address that sent the message.
+	*/
+	void LogConnection(const std::string& fileName, const std::string& message, int ip);
+	/*
+		Log login attempts (whether they are successful or not) into fileName.
+		Arguments:
+		  const std::string& fileName - The location of the file to write the message.
+		  const std::string& user - The user who attempted login.
+		  bool successful - Was the attempt successful?
+	*/
+	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful);
 
 	//A callback function used in the OpenSSL library. May be replaced with a lambda 
 	//function in the future.
