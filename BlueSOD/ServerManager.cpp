@@ -9,6 +9,7 @@ extern std::shared_mutex serverStateMutex;
 
 using std::string;
 using std::fstream;
+using std::list;
 
 ServerManager::~ServerManager()
 {
@@ -210,6 +211,11 @@ int ServerManager::GetPortNumber()
 	return port;
 }
 
+list<int> ServerManager::GetPortNumbers()
+{
+	return list<int>(m_portNumbers);
+}
+
 void ServerManager::SetPortNumber(int port)
 {
 	m_portMutex.lock_shared();
@@ -219,6 +225,15 @@ void ServerManager::SetPortNumber(int port)
 	{
 		//TO DO: Send a reset connection along with the new port number to clients
 	}
+}
+
+void ServerManager::AddAPort(int port)
+{
+	m_portMutex.lock_shared();
+	m_portNumbers.push_back(port);
+	m_portMutex.unlock_shared();
+
+	AddSocket(port);
 }
 
 SOCKET ServerManager::CreateSocket(int port)
@@ -264,6 +279,13 @@ SOCKET ServerManager::CreateSocket(int port)
 	}
 
 	return socket;
+}
+
+void ServerManager::AddSocket(int port)
+{
+	m_socketMutex.lock_shared();
+	m_listenerSockets.push_back(CreateSocket(port));
+	m_socketMutex.unlock_shared();
 }
 
 SSL_CTX* ServerManager::CreateSSLContext()
