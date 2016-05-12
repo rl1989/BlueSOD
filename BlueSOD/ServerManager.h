@@ -5,7 +5,6 @@
 #include <openssl/bio.h>
 #include <iostream>
 #include <fstream>
-#include <thread>
 #include <list>
 #include <vector>
 #include "Server.h"
@@ -29,6 +28,12 @@
 
 //Will be used to start the server. The function is passed off to std::thread with the server as an argument.
 void StartServer(std::shared_ptr<Server> server);
+
+/*
+	Tells whether a connection was accepted or if a connection is still waiting.
+*/
+enum class SocketStatus
+{ ACCEPTED, LISTENING };
 
 /*
 	The ServerManager will manage initial connections. That is, when it receives a connection request from
@@ -73,14 +78,19 @@ private:
 	//user is logged in.
 	std::shared_ptr<Server> m_server;
 	//This guarantees that the state of the ServerManager will be modified by one thread at a time.
-	shared_mutex m_stateMutex;
+	mutex m_stateMutex;
 	//This guarantees that the ServerManager will be modified by one thread at a time.
-	shared_mutex m_serverManagerMutex;
+	mutex m_serverManagerMutex;
 	//This guarantees that the port will only be modified by one thread at a time.
-	shared_mutex m_portMutex;
+	mutex m_portMutex;
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
-	shared_mutex m_runMutex;
+	mutex m_runMutex;
+	//Holds a list of any pending login requests.
+	vector<std::shared_future<ClientInfo>> requests;
+	//Safeguards requests.
+	shared_mutex m_requestsSharedMutex;
+	//Testing commit
 
 
 public:
@@ -108,19 +118,19 @@ public:
 	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
-	void Run(ServerState state = ServerState::RUNNING);
+	bool Run(ServerState state = ServerState::RUNNING);
 	//Stops the ServerManager. The ServerManager will not immediately shut down, but a signal
 	//will be sent to inform it to shut down.
-	void Stop();
+	inline void Stop() { SetState(ServerState::OFF); }
 	//Returns the state of the ServerManager.
-	ServerState GetState();
+	inline ServerState GetState();
 	//Modifies the state of the ServerManager.
-	void SetState(ServerState state);
+	inline void SetState(ServerState state);
 	//Returns the port number the ServerManger is listening on.
-	int GetPortNumber();
+	inline int GetPortNumber();
 	//Modifies the port that the ServerManager will listen to. Will send a reset connection
 	//signal to clients along with the new port number.
-	void SetPortNumber(int port);
+	inline void SetPortNumber(int port);
 
 private:
 	//Initializes WSA and OpenSSL.
@@ -137,7 +147,7 @@ private:
 	//  true  - Listening on port.
 	//  false - An error occurred. Must consult WSA for error information.
 	bool OpenForConnections(int port);
-
+	inline bool IsListening();
 	//Accept an incoming connection.
 	//Return value:
 	//  The socket of the accepted connection (i.e. the client).
@@ -206,7 +216,30 @@ private:
 		  bool successful - Was the attempt successful?
 	*/
 	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful);
-
+	/*
+		Locks the port for access.
+	*/
+	inline void LockPort() { m_portMutex.lock(); }
+	/*
+		Unlocks the port.
+	*/
+	inline void UnlockPort() { m_portMutex.unlock(); }
+	/*
+		Locks the state for access.
+	*/
+	inline void LockState() { m_stateMutex.lock(); }
+	/*
+		Unlocks the state.
+	*/
+	inline void UnlockState() { m_stateMutex.unlock(); }
+	/*
+		Prevents the ServerManager from running multiple times.
+	*/
+	inline void LockRun() { m_runMutex.lock(); }
+	/*
+		Allows the ServerManager to call Run() again.
+	*/
+	inline void UnlockRun() { m_runMutex.unlock(); }
 	//A callback function used in the OpenSSL library. May be replaced with a lambda 
 	//function in the future.
 	static int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);

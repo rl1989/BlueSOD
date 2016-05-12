@@ -4,9 +4,6 @@
 #include <cstring>
 #include <time.h>
 
-extern std::shared_mutex serverMutex;
-extern std::shared_mutex serverStateMutex;
-
 using std::string;
 using std::fstream;
 using std::list;
@@ -42,6 +39,11 @@ bool ServerManager::OpenForConnections(int port)
 		return false;
 	m_listenerSocket = CreateSocket(port);
 
+	return m_listenerSocket != INVALID_SOCKET;
+}
+
+bool ServerManager::IsListening()
+{
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
@@ -102,10 +104,9 @@ void ServerManager::StopAcceptingConnections()
 	SetState(ServerState::NOT_ACCEPTING_CONNECTIONS);
 }
 
-void ServerManager::Run(ServerState state)
+bool ServerManager::Run(ServerState state)
 {
-	//Prevents more than one thread from calling Run(). May be unnecessary.
-	m_runMutex.lock_shared();
+	LockRun();
 	//Initialize the OpenSSL and WSA libraries first.
 	if (!Init())
 	{
@@ -129,7 +130,7 @@ void ServerManager::Run(ServerState state)
 			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
 			fileName += CONNECTION_ERROR_FILE;
 			LogError(fileName, error);
-			return;
+			return false;
 		}
 	}
 
@@ -144,44 +145,92 @@ void ServerManager::Run(ServerState state)
 	ServerState curState = GetState();
 	while (curState != ServerState::OFF || curState != ServerState::NOT_ACCEPTING_CONNECTIONS)
 	{
-		if (curState == ServerState::RESET)
+		switch (curState)
 		{
-			/*
-				TO DO list:
-				  1) Deallocate current socket.
-				  2) Create new socket.
-				  3) Send message to clients with new port number.
-			*/
-		}
-		//Open and accept connections
-		if (OpenForConnections(GetPortNumber()))
-		{
-			if (AcceptIncomingConnection() == INVALID_SOCKET)
-			{
-				string errorMessage = string();
-				errorMessage += time(nullptr);
-				errorMessage += " There was a problem on port ";
-				errorMessage += GetPortNumber();
-				string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-				fileName += CONNECTION_ERROR_FILE;
-				LogError(fileName, errorMessage);
-			}
-			//The incoming connection was accepted so add the client connection and SSL
-			//information to the Server (and, additionally, create the Server if necessary).
-			else if (m_server == nullptr)
-			{
-				m_server = std::shared_ptr<Server>(new Server(m_clientSocket, m_clientSSL));
-				std::thread serverThread = std::thread(StartServer, m_server);
-			}
-			else
-			{
-				m_server->AddClient(m_clientSocket, m_clientSSL);
-			}
-		}
-		//Something happened
-		else
-		{
-			StopAcceptingConnections();
+			//A new port was requested to be used by the administrator. Close the current socket and
+			//open a new one. Then send a message to any clients attached to use the new port.
+			case ServerState::RESET:
+				closesocket(m_listenerSocket);
+				if (!OpenForConnections(GetPortNumber()))
+				{
+					string errorMsg = string();
+					errorMsg += time(nullptr);
+					errorMsg += " Could not open port ";
+					errorMsg += GetPortNumber();
+					errorMsg += " for listening on ServerManager.";
+					string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+					fileName += CONNECTION_ERROR_FILE;
+					LogError(fileName, errorMsg);
+
+					return false;
+				}
+				m_server->ReconnectWithClientsOn(GetPortNumber());
+				break;
+			//Connect with any incoming clients.
+			case ServerState::RUNNING:
+				if (!IsListening())
+				{
+					if (!OpenForConnections(GetPortNumber()))
+					{
+						string errorMsg = string();
+						errorMsg += time(nullptr);
+						errorMsg += " Could not open port ";
+						errorMsg += GetPortNumber();
+						errorMsg += " for listening on ServerManager.";
+						string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+						fileName += CONNECTION_ERROR_FILE;
+						LogError(fileName, errorMsg);
+
+						return false;
+					}
+				}
+				/*
+					TO DO:
+					  1) Need to change this so that ServerManager is not blocking here.
+					  2) Testing... again
+				*/
+				if (AcceptIncomingConnection() == INVALID_SOCKET)
+				{
+					string errorMessage = string();
+					errorMessage += time(nullptr);
+					errorMessage += " There was a problem on port ";
+					errorMessage += GetPortNumber();
+					string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
+					fileName += CONNECTION_ERROR_FILE;
+					LogError(fileName, errorMessage);
+				}
+				else
+				{
+					/*
+						TO DO:
+						  1) Pawn the connection off to another thread that will dictate the validity of the user.
+						  2) If it is a valid user,
+						    a) Respond to the user with an acceptance message.
+							b) Pass the connection off to the Server.
+						  3) If not, send the user a message indicating invalid credentials were sent.
+					*/
+				}
+				//The incoming connection was accepted so add the client connection and SSL
+				//information to the Server (and, additionally, create the Server if necessary).
+				/*
+					TO DO:
+					  1) Verify the client's login information first.
+				*/
+				if (m_server == nullptr)
+				{
+					for (int i = 0; i < requests.size(); i++)
+					{
+						if (requests.at(i).get().auth == UserAuthentication::PENDING)
+							continue;
+					}
+					m_server = std::shared_ptr<Server>(new Server(m_clientSocket, m_clientSSL));
+					std::thread serverThread = std::thread(StartServer, m_server);
+				}
+				else
+				{
+					m_server->AddClient(m_clientSocket, m_clientSSL);
+				}
+				break;
 		}
 
 		curState = GetState();
@@ -191,12 +240,7 @@ void ServerManager::Run(ServerState state)
 		Cleanup();
 	}
 
-	m_runMutex.unlock_shared();
-}
-
-void ServerManager::Stop()
-{
-	SetState(ServerState::OFF);
+	UnlockRun();
 }
 
 ServerState ServerManager::GetState()
@@ -205,36 +249,37 @@ ServerState ServerManager::GetState()
 
 	//I do not know if it is necessary to initiate a lock in order
 	//to read a shared variable.
-	m_stateMutex.lock_shared();
+	LockState();
 	state = m_state;
-	m_stateMutex.unlock_shared();
+	UnlockState();
+
 	return state;
 }
 
 void ServerManager::SetState(ServerState state)
 {
 	//Must lock and unlock the mutex to modify the state.
-	m_stateMutex.lock_shared();
+	LockState();
 	m_state = state;
-	m_stateMutex.unlock_shared();
+	UnlockState();
 }
 
 int ServerManager::GetPortNumber()
 {
 	int port;
-	//Lock and unlock the mutex to modify the port number.
-	m_portMutex.lock_shared();
+	
+	LockPort();
 	port = m_portNumber;
-	m_portMutex.unlock_shared();
+	UnlockPort();
 
 	return port;
 }
 
 void ServerManager::SetPortNumber(int port)
 {
-	m_portMutex.lock_shared();
+	LockPort();
 	m_portNumber = port;
-	m_portMutex.unlock_shared();
+	UnlockPort();
 
 	if (GetState() == ServerState::RUNNING)
 	{
