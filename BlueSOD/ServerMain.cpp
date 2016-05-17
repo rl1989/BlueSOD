@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
 #include <openssl/bio.h>
 #include <string>
 #include <iostream>
+#include "SSL_concurrency.h"
 
 #define SSL_PEM_LOCATIONS "G:\\Ricky\\Documents\\Programming\\Tools\\SSLKeys\\Private\\"
 #define SSL_PASSWORD_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSLKeys\\Private\\"
@@ -78,6 +79,8 @@ using std::endl;
 #pragma comment(lib, "libeay32.lib")
 #pragma comment(lib, "ssleay32.lib")
 
+int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);
+
 int main()
 {
 	WSAData d;
@@ -89,10 +92,11 @@ int main()
 	addr.sin_family = AF_INET;
 	addr.sin_addr.S_un.S_addr = ADDR_ANY;
 	addr.sin_port = htons(2048);
-	bind(s, (const sockaddr *)&addr, sizeof(addr));
+	/*bind(s, (const sockaddr *)&addr, sizeof(addr));
 	listen(s, SOMAXCONN);
-	SOCKET client = accept(s, nullptr, nullptr);
-
+	SOCKET client = accept(s, nullptr, nullptr);*/
+	
+	thread_setup();
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	OpenSSL_add_ssl_algorithms();
@@ -125,10 +129,23 @@ int main()
 	}
 
 	SSL* ssl = SSL_new(ctx);
-	BIO* b = BIO_new_socket(client, BIO_NOCLOSE);
+	BIO* b = BIO_new_socket(s, BIO_NOCLOSE);
 	SSL_set_bio(ssl, b, b);
-	SSL_accept(ssl);
+	int res = SSL_accept(ssl);
+	cout << "SSL_accept result: " << res << endl;
+	if (res >= 0)
+	{
+		cout << "Error accepting SSL connection." << endl;
+		cout << "Error code: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+		system("PAUSE");
+		return 1;
+	}
 
+	BIO_free(b);
+	closesocket(s);
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
+	EVP_cleanup();
 
 	system("PAUSE");
 	return 0;

@@ -27,6 +27,12 @@
     <ClInclude Include="CommonServer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TS_Stack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SSL_concurrency.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ServerManager.cpp">
@@ -36,6 +42,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ServerMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TS_Stack.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -3,13 +3,14 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/bio.h>
+#include <openssl/crypto.h>
 #include <iostream>
 #include <fstream>
-#include <list>
 #include <vector>
 #include "Server.h"
 #include "ServerConcurrency.h"
 #include "CommonServer.h"
+#include "SSL_concurrency.h"
 
 //The port the server will isten on.
 #define SERVER_PORT 2048
@@ -19,11 +20,11 @@
 #define SSL_PASSWORD_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\PrivateKeys\\"
 #define CERTIFICATE_FILE "ricky-anthony.asuscomm.com.cert.pem"
 #define PRIVATE_KEY_FILE "ricky-anthony.asuscomm.com.key.pem"
+#define PASSWORD_FILE "password.txt"
 //Locations of error files
 #define SSL_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
 #define CONNECTION_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
 #define SSL_ERROR_FILE "SSLServerErrors.txt"
-#define PASSWORD_FILE "password.txt"
 #define CONNECTION_ERROR_FILE "ConnectionErrors.txt"
 
 //Will be used to start the server. The function is passed off to std::thread with the server as an argument.
@@ -44,12 +45,9 @@ enum class SocketStatus
 	Ideally, it will be hosted on its own machine and then it will communicate with the Server on a different
 	machine.
 */
-//TO DO: Allow the administrator to have the ServerManager listen on multiple ports (and how many?).
+
 //TO DO: Throw error from Run() if WSA is not initialized?
-//TO DO: Determine if it is necessary to provide a mutex for Run().
 //TO DO: Change any FILE uses to fstream.
-//TO DO: Changed shared_mutex to unique_mutex. I do not foresee sharing these mutexes between threads.
-//       This can always be changed in the future.
 class ServerManager
 {
 private:
@@ -86,12 +84,6 @@ private:
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
-	//Holds a list of any pending login requests.
-	vector<std::shared_future<ClientInfo>> requests;
-	//Safeguards requests.
-	shared_mutex m_requestsSharedMutex;
-	//Testing commit
-
 
 public:
 	//The default constructor.
@@ -113,7 +105,8 @@ public:
 		m_server{ nullptr },
 		m_stateMutex{},
 		m_serverManagerMutex{},
-		m_portMutex{}
+		m_portMutex{},
+		m_runMutex{}
 
 	{}
 	~ServerManager();
@@ -132,20 +125,37 @@ public:
 	//signal to clients along with the new port number.
 	inline void SetPortNumber(int port);
 
+	/*
+		Determines if the ServerManager is accepting SSL connections.
+	*/
+	inline bool Encrypted() { return m_bOpenSSL; }
+
 private:
-	//Initializes WSA and OpenSSL.
-	//Returns false if OpenSSL or both are not ready, true otherwise. i.e. WSA may be ready
-	//but not OpenSSL and this will still return true. The ServerManager is ready to listen
-	//for connections.
+	/*
+		Initializes WSA and OpenSSL.
+		
+		Return value:
+			false - OpenSSL or both (OpenSSL and WSA) are not ready, true otherwise. i.e. WSA may be ready
+			but not OpenSSL and this will still return true. The ServerManager is ready to listen
+			for connections. If OpenSSL does not initialize, then SSL connections will not be accepted.
+			Call Encrypted() to determine OpenSSL initialization status.
+	*/
 	bool Init();
-	//Cleans up WSA and OpenSSL libraries. Required if they were initialized.
+	/*
+		Closes any connections, shuts down multithreading support in OpenSSL, cleans up OpenSSL
+		and WSA.
+	*/
 	void Cleanup();
-	//Open the ServerManager for connections on port.
-	//Arguments:
-	//  int port - The port to listen on.
-	//Return value:
-	//  true  - Listening on port.
-	//  false - An error occurred. Must consult WSA for error information.
+	/*
+		Open the ServerManager for connections on port. If there is another open socket, it
+		will be closed.
+
+		Arguments:
+			int port - The port to listen on.
+		Return value:
+		    true  - Listening on port.
+			false - An error occurred. Must consult WSA for error information.
+	*/
 	bool OpenForConnections(int port);
 	inline bool IsListening();
 	//Accept an incoming connection.
@@ -191,6 +201,10 @@ private:
 	//Cleanup WSA. This must be called before the program ends if WSA was previously
 	//initialized.
 	void CleanupWSA();
+	/*
+		Close any connections.
+	*/
+	void CloseConnections();
 	//Log the OpenSSL error into fileName.
 	//Argument:
 	//  const std::string& fileName - The location of the file to write the error message.
@@ -216,30 +230,23 @@ private:
 		  bool successful - Was the attempt successful?
 	*/
 	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful);
-	/*
-		Locks the port for access.
-	*/
+
 	inline void LockPort() { m_portMutex.lock(); }
-	/*
-		Unlocks the port.
-	*/
 	inline void UnlockPort() { m_portMutex.unlock(); }
-	/*
-		Locks the state for access.
-	*/
 	inline void LockState() { m_stateMutex.lock(); }
-	/*
-		Unlocks the state.
-	*/
 	inline void UnlockState() { m_stateMutex.unlock(); }
-	/*
-		Prevents the ServerManager from running multiple times.
-	*/
 	inline void LockRun() { m_runMutex.lock(); }
-	/*
-		Allows the ServerManager to call Run() again.
-	*/
 	inline void UnlockRun() { m_runMutex.unlock(); }
+
+	/*
+		Adds a client to m_server. If m_server is not initialized, then this function will
+		initialize it.
+		
+		Arguments:
+		  SOCKET socket - The client being added.
+	*/
+	void AddClient(SOCKET socket);
+
 	//A callback function used in the OpenSSL library. May be replaced with a lambda 
 	//function in the future.
 	static int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);

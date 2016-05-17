@@ -1,12 +1,25 @@
 #include "ServerManager.h"
+#include "TS_Stack.h"
 #include <stdio.h>
-#include <thread>
 #include <cstring>
 #include <time.h>
+#include <stack>
+#include <openssl/crypto.h>
+
+
+
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "libeay32.lib")
+#pragma comment(lib, "ssleay32.lib")
 
 using std::string;
 using std::fstream;
-using std::list;
+using std::stack;
+
+void AcceptConnections(ServerManager* sm, SOCKET s)
+{
+	
+}
 
 ServerManager::~ServerManager()
 {
@@ -20,14 +33,19 @@ bool ServerManager::Init()
 		InitWSA();
 	//OpenSSL isn't initialized so initialize it.
 	if (!m_bOpenSSL)
+	{
+		thread_setup();
 		InitOpenSSL();
+	}
 	
 	return m_bWSA;
 }
 
 void ServerManager::Cleanup()
 {
-	//Need to cleanup OpenSSL and WSA.
+	//Need to close connections and cleanup OpenSSL as well as WSA.
+	CloseConnections();
+	thread_cleanup();
 	CleanupOpenSSL();
 	CleanupWSA();
 }
@@ -37,6 +55,10 @@ bool ServerManager::OpenForConnections(int port)
 	//WSA must be initialized before creating sockets.
 	if (!m_bWSA)
 		return false;
+	
+	if (m_listenerSocket != INVALID_SOCKET)
+		closesocket(m_listenerSocket);
+
 	m_listenerSocket = CreateSocket(port);
 
 	return m_listenerSocket != INVALID_SOCKET;
@@ -107,6 +129,7 @@ void ServerManager::StopAcceptingConnections()
 bool ServerManager::Run(ServerState state)
 {
 	LockRun();
+
 	//Initialize the OpenSSL and WSA libraries first.
 	if (!Init())
 	{
@@ -148,7 +171,7 @@ bool ServerManager::Run(ServerState state)
 		switch (curState)
 		{
 			//A new port was requested to be used by the administrator. Close the current socket and
-			//open a new one. Then send a message to any clients attached to use the new port.
+			//open a new one. Then send a message to any clients telling them to use the new port.
 			case ServerState::RESET:
 				closesocket(m_listenerSocket);
 				if (!OpenForConnections(GetPortNumber()))
@@ -164,9 +187,10 @@ bool ServerManager::Run(ServerState state)
 
 					return false;
 				}
-				m_server->ReconnectWithClientsOn(GetPortNumber());
+
+				//m_server->ReconnectWithClientsOn(GetPortNumber());
 				break;
-			//Connect with any incoming clients.
+				//Connect with any incoming clients.
 			case ServerState::RUNNING:
 				if (!IsListening())
 				{
@@ -184,10 +208,59 @@ bool ServerManager::Run(ServerState state)
 						return false;
 					}
 				}
+				
+				fd_set fds;
+				FD_ZERO(&fds);
+				FD_SET(m_listenerSocket, &fds);
+				int r = select(0, &fds, nullptr, nullptr, nullptr);
+				if (r == 1)
+				{
+					SOCKET incomingConnection = accept(m_listenerSocket, nullptr, nullptr);
+
+					if (m_bOpenSSL)
+					{
+						//Establish an SSL connection.
+						//Will need to use BIO since this will be running on Windows.
+						SSL* ssl = SSL_new(m_sslContext);
+						fd_set fdsssl;
+						FD_ZERO(&fdsssl);
+						//AddClient(incomingConnection);
+					}
+					else
+					{
+						//Establish a regular connection.
+						
+					}
+					//A valid connection was obtained. Verify it.
+					/*
+					TO DO:
+					Pre: Create SSL connection.
+					1) Pawn the connection off to another thread that will dictate the validity of the user.
+					2) If it is a valid user,
+					a) Respond to the user with an acceptance message.
+					b) Pass the connection off to the Server.
+					3) If not, send the user a message indicating invalid credentials were sent.
+					*/
+
+					//The incoming connection was accepted so add the client connection and SSL
+					//information to the Server (and, additionally, create the Server if necessary).
+					if (m_server == nullptr)
+					{
+						m_server = std::shared_ptr<Server>(new Server(m_clientSocket, m_clientSSL));
+						std::thread serverThread = std::thread(StartServer, m_server);
+					}
+					else
+					{
+						//m_server->AddClient(m_clientSocket, m_clientSSL);
+					}
+				}
+
 				/*
 					TO DO:
-					  1) Need to change this so that ServerManager is not blocking here.
-					  2) Testing... again
+					  1) Move this to a new thread so that the ServerManager is not blocking here anytime it
+						 is waiting on a new connection. If a new connection never comes, then any users
+						 pending authentication will never get properly authenticated and never sent to
+						 the Server.
 				*/
 				if (AcceptIncomingConnection() == INVALID_SOCKET)
 				{
@@ -201,41 +274,15 @@ bool ServerManager::Run(ServerState state)
 				}
 				else
 				{
-					/*
-						TO DO:
-						  1) Pawn the connection off to another thread that will dictate the validity of the user.
-						  2) If it is a valid user,
-						    a) Respond to the user with an acceptance message.
-							b) Pass the connection off to the Server.
-						  3) If not, send the user a message indicating invalid credentials were sent.
-					*/
+
 				}
-				//The incoming connection was accepted so add the client connection and SSL
-				//information to the Server (and, additionally, create the Server if necessary).
-				/*
-					TO DO:
-					  1) Verify the client's login information first.
-				*/
-				if (m_server == nullptr)
-				{
-					for (int i = 0; i < requests.size(); i++)
-					{
-						if (requests.at(i).get().auth == UserAuthentication::PENDING)
-							continue;
-					}
-					m_server = std::shared_ptr<Server>(new Server(m_clientSocket, m_clientSSL));
-					std::thread serverThread = std::thread(StartServer, m_server);
-				}
-				else
-				{
-					m_server->AddClient(m_clientSocket, m_clientSSL);
-				}
+
 				break;
 		}
 
 		curState = GetState();
 	}
-	if (GetState() == ServerState::OFF)
+	if (curState == ServerState::OFF)
 	{
 		Cleanup();
 	}
@@ -311,7 +358,7 @@ SOCKET ServerManager::CreateSocket(int port)
 	}
 
 	//Bind socket.
-	if (bind(socket, (struct sockaddr*)&addr, sizeof(addr)) == INVALID_SOCKET)
+	if (::bind(socket, (struct sockaddr*)&addr, sizeof(addr)) == INVALID_SOCKET)
 	{
 		string error = string();
 		error += time(nullptr);
@@ -441,7 +488,20 @@ bool ServerManager::InitWSA()
 
 void ServerManager::CleanupWSA()
 {
-	WSACleanup();
+	if (!m_bWSA)
+		WSACleanup();
+}
+
+void ServerManager::CloseConnections()
+{
+	if (m_listenerSocket)
+		closesocket(m_listenerSocket);
+	if (m_clientSocket)
+		closesocket(m_clientSocket);
+	if (m_clientSSL)
+		SSL_free(m_clientSSL);
+	if (m_sslContext)
+		SSL_CTX_free(m_sslContext);
 }
 
 void ServerManager::LogSSLError(const std::string& fileName)
@@ -500,7 +560,7 @@ int ServerManager::PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, 
 	
 	fclose(file);
 
-	return strlen(buffer);
+	return static_cast<int>(strlen(buffer));
 }
 
 void StartServer(std::shared_ptr<Server> server)

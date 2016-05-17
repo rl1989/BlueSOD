@@ -23,20 +23,16 @@ void Server::AddClient(SOCKET client, SSL* ssl)
 	clientInfo.ssl = ssl;
 
 	//Add client to the list.
-	serverMutex.lock_shared();
+	m_accessMutex.lock_shared();
 	m_clients.push_back(clientInfo);
-	serverMutex.unlock_shared();
+	m_accessMutex.unlock_shared();
 }
 
 int Server::NumberOfClients()
 {
-	int size;
-	
-	//I don't know if locking the resource is necessary for a read.
-	serverMutex.lock_shared();
-	size = m_clients.size();
-	serverMutex.unlock_shared();
-	return size;
+	std::lock_guard<shared_mutex> lck(m_accessMutex);
+
+	return static_cast<int>(m_clients.size());
 }
 
 void Server::Run()
