@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <openssl\ssl.h>
+#include <WinSock2.h>
 
 //The maximum size of a message a client can send.
 #define BUFFER_SIZE 1024
@@ -14,7 +15,7 @@ Tells whether the user was authenticated or if a result is still pending.
 */
 enum class UserAuthentication
 {
-	VALID, INVALID, PENDING
+	VALID, INVALID, PENDING, NO_REQUEST
 };
 //Holds information unique to the client.
 struct ClientInfo
@@ -42,8 +43,7 @@ struct ClientInfo
 		bytesRecv = bytesSend = 0;
 	}
 	ClientInfo()
-		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::INVALID) {}
-
+		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::NO_REQUEST) {}
 
 	~ClientInfo()
 	{
