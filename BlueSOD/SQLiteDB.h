@@ -1,17 +1,33 @@
 #pragma once
 #include <string>
-#include <sqlite3.h>
+#include <mutex>
+#include "sqlite3.h"
 
 using std::string;
 
-class SQLiteDB
+class SQLiteDb
 {
 private:
-	string db;
-	sqlite3 object;
-	sqlite3_stmt statement;
+	string m_dbLoc;
+	sqlite3* m_sqlObject;
+	sqlite3_stmt* m_sqlStatement;
+	int m_lastErr;
+	bool m_hasRows;
 public:
-	SQLiteDB();
-	~SQLiteDB();
-};
+	SQLiteDb();
+	~SQLiteDb();
 
+	bool ExecuteStatement(string statement);
+	inline bool HasRows() { return m_hasRows; }
+
+
+private:
+	bool OpenDb();
+	void CloseDb();
+
+	/*
+		TO DO:
+		  1) Determine how to properly protect against SQL injection.
+	*/
+	string CleanStatement(string statement);
+};
