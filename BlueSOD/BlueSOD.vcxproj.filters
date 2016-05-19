@@ -39,6 +39,9 @@
     <ClInclude Include="SQLiteDB.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="sqlite3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ServerManager.cpp">
@@ -59,5 +62,14 @@
     <ClCompile Include="SQLiteDB.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="sqlite3.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="sqlite3.def">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="sqlite3.dll" />
   </ItemGroup>
 </Project>

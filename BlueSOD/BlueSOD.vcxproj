@@ -91,12 +91,12 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>G:\Ricky\Documents\Programming\Tools\SQL\SQLite3\sqlite-amalgamation-3130000;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>G:\Ricky\Documents\Programming\Tools\SQL\SQLite3;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libeay32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libeay32.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -130,6 +130,7 @@
     <ClInclude Include="Server.h" />
     <ClInclude Include="ServerConcurrency.h" />
     <ClInclude Include="ServerManager.h" />
+    <ClInclude Include="sqlite3.h" />
     <ClInclude Include="SQLiteDB.h" />
     <ClInclude Include="SSL_concurrency.h" />
     <ClInclude Include="TS_Stack.h" />
@@ -142,6 +143,13 @@
     <ClCompile Include="SQLiteDB.cpp" />
     <ClCompile Include="TS_Stack.cpp" />
     <ClCompile Include="UserVerifier.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="sqlite3.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="sqlite3.def" />
+    <None Include="sqlite3.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
