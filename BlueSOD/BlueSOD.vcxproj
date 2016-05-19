@@ -132,12 +132,14 @@
     <ClInclude Include="ServerManager.h" />
     <ClInclude Include="SSL_concurrency.h" />
     <ClInclude Include="TS_Stack.h" />
+    <ClInclude Include="UserVerifier.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="ServerManager.cpp" />
     <ClCompile Include="TS_Stack.cpp" />
+    <ClCompile Include="UserVerifier.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
