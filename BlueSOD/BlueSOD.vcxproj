@@ -91,11 +91,11 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>G:\Ricky\Documents\Programming\Tools\SQL\sqlite-amalgamation-3120100\sqlite-amalgamation-3120100;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>G:\Ricky\Documents\Programming\Tools\SQL\SQLite3\sqlite-amalgamation-3130000;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>G:\Ricky\Documents\Programming\Tools\SQL\sqlite-amalgamation-3120100\sqlite-amalgamation-3120100;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>G:\Ricky\Documents\Programming\Tools\SQL\SQLite3;G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libeay32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
