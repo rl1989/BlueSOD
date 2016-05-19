@@ -25,35 +25,41 @@ public:
 		stack<T>{}
 	{}
 
-	void Push(const T& e)
+	void push(const T& e)
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->push(e);
 	}
-	void Push(T&& e)
+	void push(T&& e)
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->push(e);
 	}
-	void Pop()
+	void pop()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->pop();
 	}
-	int& Top()
+	T& top()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		return static_cast<stack<T>*>(this)->top();
 	}
-	int Size()
+	int size()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		return static_cast<stack<T>*>(this)->size();
+	}
+	bool empty()
+	{
+		lock_guard<shared_mutex> lck(m);
+
+		return static_cast<stack<T>*>(this)->empty();
 	}
 };
 
