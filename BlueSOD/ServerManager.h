@@ -7,10 +7,29 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <string>
 #include "Server.h"
 #include "ServerConcurrency.h"
 #include "CommonServer.h"
 #include "SSL_concurrency.h"
+
+using std::string;
+
+/*
+	FINALLY FOUND HOW IT WORKS:
+
+	SSL_accept does not call accept for you. It expects that accept has already been called.
+
+	The correct sequence of calls is:
+
+	socket
+	bind
+	listen
+	accept
+	SSL_new
+	SSL_set_fd
+	SSL_accept
+*/
 
 //The port the server will isten on.
 #define SERVER_PORT 2048
@@ -22,10 +41,11 @@
 #define PRIVATE_KEY_FILE "ricky-anthony.asuscomm.com.key.pem"
 #define PASSWORD_FILE "password.txt"
 //Locations of error files
-#define SSL_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
-#define CONNECTION_ERROR_FILE_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
-#define SSL_ERROR_FILE "SSLServerErrors.txt"
-#define CONNECTION_ERROR_FILE "ConnectionErrors.txt"
+
+#define ERROR_LOGS_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
+#define ERROR_LOG "ErrorLog.txt"
+#define SSL_ERROR_LOG "SSLServerErrorLog.txt"
+#define CONNECTION_ERROR_LOG "ConnectionErrorLog.txt"
 
 //Will be used to start the server. The function is passed off to std::thread with the server as an argument.
 void StartServer(std::shared_ptr<Server> server);
@@ -55,15 +75,8 @@ private:
 	SOCKET m_listenerSocket;
 	//The port ServerManager will be listening on.
 	int m_portNumber;
-	//This socket will be passed to the Server once a connection has been made.
-	SOCKET m_clientSocket;
 	//The SSL context to be used.
 	SSL_CTX* m_sslContext;
-	//This represents the SSL connection. It will be passed to the Server.
-	SSL* m_clientSSL;
-	//Determines if the client is connecting through SSL.
-	//May be removed in the future.
-	bool m_bClientHasSSLConnection;
 	//Determines if WSA was properly initialized. Connections cannot be made on a Windows
 	//machine unless WSA was properly initialized.
 	bool m_bWSA;
@@ -76,11 +89,11 @@ private:
 	//user is logged in.
 	std::shared_ptr<Server> m_server;
 	//This guarantees that the state of the ServerManager will be modified by one thread at a time.
-	mutex m_stateMutex;
+	shared_mutex m_stateMutex;
 	//This guarantees that the ServerManager will be modified by one thread at a time.
-	mutex m_serverManagerMutex;
+	shared_mutex m_serverManagerMutex;
 	//This guarantees that the port will only be modified by one thread at a time.
-	mutex m_portMutex;
+	shared_mutex m_portMutex;
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
@@ -95,10 +108,7 @@ public:
 	ServerManager(int port)
 		: m_listenerSocket{ INVALID_SOCKET },
 		m_portNumber{ port },
-		m_clientSocket{ INVALID_SOCKET },
 		m_sslContext{ nullptr },
-		m_clientSSL{ nullptr },
-		m_bClientHasSSLConnection{ false },
 		m_bWSA{ false },
 		m_bOpenSSL{ false },
 		m_state{ ServerState::OFF },
@@ -125,11 +135,6 @@ public:
 	//signal to clients along with the new port number.
 	inline void SetPortNumber(int port);
 
-	/*
-		Determines if the ServerManager is accepting SSL connections.
-	*/
-	inline bool Encrypted() { return m_bOpenSSL; }
-
 private:
 	/*
 		Initializes WSA and OpenSSL.
@@ -148,7 +153,7 @@ private:
 	void Cleanup();
 	/*
 		Open the ServerManager for connections on port. If there is another open socket, it
-		will be closed.
+		will be closed. MAY GET DELETED.
 
 		Arguments:
 			int port - The port to listen on.
@@ -158,11 +163,14 @@ private:
 	*/
 	bool OpenForConnections(int port);
 	inline bool IsListening();
-	//Accept an incoming connection.
-	//Return value:
-	//  The socket of the accepted connection (i.e. the client).
-	//  INVALID_SOCKET is returned if there was an error connecting to the client.
-	SOCKET AcceptIncomingConnection();
+	/*
+		Accept an incoming connection. MAY GET DELETED.
+		
+		Return value:
+			The socket of the accepted connection (i.e. the client).
+			INVALID_SOCKET is returned if there was an error connecting to the client.
+	*/
+	ClientInfo AcceptIncomingConnection();
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).
 	void StopAcceptingConnections();
@@ -182,7 +190,7 @@ private:
 	//Return value:
 	//  true - The context was properly configured.
 	//  false - There was an error. The error will be logged.
-	bool ConfigureSSLContext();
+	bool ConfigureSSLContext(SSL_CTX* ctx);
 	//Initialize OpenSSL. This will create an SSL context object and will configure it. Thus,
 	//calls to CreateSSLContext() and ConfigureSSLContext() are made redundant unless something
 	//changes.
@@ -205,10 +213,8 @@ private:
 		Close any connections.
 	*/
 	void CloseConnections();
-	//Log the OpenSSL error into fileName.
-	//Argument:
-	//  const std::string& fileName - The location of the file to write the error message.
-	void LogSSLError(const std::string& fileName);
+	//Log the OpenSSL error into the SSL Error logfile.
+	void LogSSLError();
 	//Log any non-OpenSSL errorMessage into fileName.
 	//Arguments:
 	//  const std::string& fileName - The location of the file to write errorMessage.
@@ -229,14 +235,7 @@ private:
 		  const std::string& user - The user who attempted login.
 		  bool successful - Was the attempt successful?
 	*/
-	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful);
-
-	inline void LockPort() { m_portMutex.lock(); }
-	inline void UnlockPort() { m_portMutex.unlock(); }
-	inline void LockState() { m_stateMutex.lock(); }
-	inline void UnlockState() { m_stateMutex.unlock(); }
-	inline void LockRun() { m_runMutex.lock(); }
-	inline void UnlockRun() { m_runMutex.unlock(); }
+	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful, int ip);
 
 	/*
 		Adds a client to m_server. If m_server is not initialized, then this function will

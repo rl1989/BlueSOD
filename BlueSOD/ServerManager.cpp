@@ -1,9 +1,7 @@
 #include "ServerManager.h"
 #include "TS_Stack.h"
 #include <stdio.h>
-#include <cstring>
 #include <time.h>
-#include <stack>
 #include <openssl/crypto.h>
 
 
@@ -69,57 +67,48 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-SOCKET ServerManager::AcceptIncomingConnection()
+ClientInfo ServerManager::AcceptIncomingConnection()
 {
+	ClientInfo info{};
 	//WSA must be initialized and the server must be in a running state to accept connections.
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
-		return INVALID_SOCKET;
+		return std::move(info);
 
-	//struct sockaddr_in addr;
-	//int len = sizeof(addr);
-	//m_clientSocket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
-	//Accept a connection and check for errors.
-	m_clientSocket = accept(m_listenerSocket, nullptr, nullptr);
-	if (m_clientSocket == INVALID_SOCKET)
+	struct sockaddr_in addr;
+	int len = sizeof(addr);
+
+	//Generate the connection details.
+	info.socket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
+	if (info.socket == INVALID_SOCKET)
 	{
-		string error = string();
-		error += time(nullptr);
-		error +=  "Could not accept connection. Last WSA error: ";
-		error += WSAGetLastError();
-		LogError(CONNECTION_ERROR_FILE, error.c_str());
-		return INVALID_SOCKET;
+		string fileName = string(CONNECTION_ERROR_LOG);
+		string msg = string();
+		msg += time(nullptr);
+		msg += " Could not accept connection";
+		LogConnection(fileName, msg, addr.sin_addr.S_un.S_addr);
+
+		return std::move(info);
 	}
 
-	//Generate the SSL object if an SSL context is available.
 	if (m_sslContext != nullptr)
 	{
-		m_clientSSL = SSL_new(m_sslContext);
-		if (SSL_set_fd(m_clientSSL, m_clientSocket) == 0)
+		info.ssl = SSL_new(m_sslContext);
+		SSL_set_fd(info.ssl, info.socket);
+		if (SSL_accept(info.ssl) <= 0)
 		{
-			string fileLoc = string(SSL_ERROR_FILE_LOCATION);
-			fileLoc += SSL_ERROR_FILE;
-			m_bClientHasSSLConnection = false;
-			LogSSLError(fileLoc);
+			LogSSLError();
+
+			SSL_free(info.ssl);
+			info.ssl = nullptr;
 		}
-		else
-		{
-			m_bClientHasSSLConnection = SSL_accept(m_clientSSL) > 0;
-		}
-	}
-	else
-	{
-		m_clientSSL = nullptr;
-		m_bClientHasSSLConnection = false;
 	}
 
-	return m_clientSocket;
+	return std::move(info);
 }
 
 void ServerManager::StopAcceptingConnections()
 {
 	//Close the client and listener sockets if they were opened.
-	if (m_clientSocket != INVALID_SOCKET)
-		closesocket(m_clientSocket);
 	if (m_listenerSocket != INVALID_SOCKET)
 		closesocket(m_listenerSocket);
 	//Signal that the ServerManager is no longer accepting connections.
@@ -128,7 +117,7 @@ void ServerManager::StopAcceptingConnections()
 
 bool ServerManager::Run(ServerState state)
 {
-	LockRun();
+	m_runMutex.lock();
 
 	//Initialize the OpenSSL and WSA libraries first.
 	if (!Init())
@@ -139,9 +128,7 @@ bool ServerManager::Run(ServerState state)
 			string error = string();
 			error += time(nullptr);
 			error += " OpenSSL is not initialized.";
-			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-			fileName += CONNECTION_ERROR_FILE;
-			LogError(fileName, error);
+			LogError(CONNECTION_ERROR_LOG, error);
 		}
 		//WSA is not available. Cannot proceed without WSA.
 		//Will probably end up throwing an error here if WSA is not available.
@@ -150,14 +137,12 @@ bool ServerManager::Run(ServerState state)
 			string error = string();
 			error += time(nullptr);
 			error += " WSA is not initialized.";
-			string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-			fileName += CONNECTION_ERROR_FILE;
-			LogError(fileName, error);
+			LogError(CONNECTION_ERROR_LOG, error);
 			return false;
 		}
 	}
 
-	//A Server is already running, so set its state to Running.
+	//A Server is already running, so set its state to state.
 	//This may be unnecessary whenever Server is fully functional.
 	if (m_server != nullptr)
 	{
@@ -165,7 +150,7 @@ bool ServerManager::Run(ServerState state)
 	}
 
 	SetState(state);
-	ServerState curState = GetState();
+	ServerState curState = state;
 	while (curState != ServerState::OFF || curState != ServerState::NOT_ACCEPTING_CONNECTIONS)
 	{
 		switch (curState)
@@ -173,6 +158,7 @@ bool ServerManager::Run(ServerState state)
 			//A new port was requested to be used by the administrator. Close the current socket and
 			//open a new one. Then send a message to any clients telling them to use the new port.
 			case ServerState::RESET:
+				//m_server->CloseConnections();
 				closesocket(m_listenerSocket);
 				if (!OpenForConnections(GetPortNumber()))
 				{
@@ -181,9 +167,7 @@ bool ServerManager::Run(ServerState state)
 					errorMsg += " Could not open port ";
 					errorMsg += GetPortNumber();
 					errorMsg += " for listening on ServerManager.";
-					string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-					fileName += CONNECTION_ERROR_FILE;
-					LogError(fileName, errorMsg);
+					LogError(CONNECTION_ERROR_LOG, errorMsg);
 
 					return false;
 				}
@@ -201,80 +185,16 @@ bool ServerManager::Run(ServerState state)
 						errorMsg += " Could not open port ";
 						errorMsg += GetPortNumber();
 						errorMsg += " for listening on ServerManager.";
-						string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-						fileName += CONNECTION_ERROR_FILE;
-						LogError(fileName, errorMsg);
+						LogError(CONNECTION_ERROR_LOG, errorMsg);
 
 						return false;
 					}
 				}
-				
-				fd_set fds;
-				FD_ZERO(&fds);
-				FD_SET(m_listenerSocket, &fds);
-				int r = select(0, &fds, nullptr, nullptr, nullptr);
-				if (r == 1)
+
+				ClientInfo info = AcceptIncomingConnection();
+				if (info.ssl != nullptr)
 				{
-					SOCKET incomingConnection = accept(m_listenerSocket, nullptr, nullptr);
-
-					if (m_bOpenSSL)
-					{
-						//Establish an SSL connection.
-						//Will need to use BIO since this will be running on Windows.
-						SSL* ssl = SSL_new(m_sslContext);
-						fd_set fdsssl;
-						FD_ZERO(&fdsssl);
-						//AddClient(incomingConnection);
-					}
-					else
-					{
-						//Establish a regular connection.
-						
-					}
-					//A valid connection was obtained. Verify it.
-					/*
-					TO DO:
-					Pre: Create SSL connection.
-					1) Pawn the connection off to another thread that will dictate the validity of the user.
-					2) If it is a valid user,
-					a) Respond to the user with an acceptance message.
-					b) Pass the connection off to the Server.
-					3) If not, send the user a message indicating invalid credentials were sent.
-					*/
-
-					//The incoming connection was accepted so add the client connection and SSL
-					//information to the Server (and, additionally, create the Server if necessary).
-					if (m_server == nullptr)
-					{
-						m_server = std::shared_ptr<Server>(new Server(m_clientSocket, m_clientSSL));
-						std::thread serverThread = std::thread(StartServer, m_server);
-					}
-					else
-					{
-						//m_server->AddClient(m_clientSocket, m_clientSSL);
-					}
-				}
-
-				/*
-					TO DO:
-					  1) Move this to a new thread so that the ServerManager is not blocking here anytime it
-						 is waiting on a new connection. If a new connection never comes, then any users
-						 pending authentication will never get properly authenticated and never sent to
-						 the Server.
-				*/
-				if (AcceptIncomingConnection() == INVALID_SOCKET)
-				{
-					string errorMessage = string();
-					errorMessage += time(nullptr);
-					errorMessage += " There was a problem on port ";
-					errorMessage += GetPortNumber();
-					string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-					fileName += CONNECTION_ERROR_FILE;
-					LogError(fileName, errorMessage);
-				}
-				else
-				{
-
+					//Pawn info off to another thread for user authentication.
 				}
 
 				break;
@@ -287,46 +207,33 @@ bool ServerManager::Run(ServerState state)
 		Cleanup();
 	}
 
-	UnlockRun();
+	m_runMutex.unlock();
 }
 
 ServerState ServerManager::GetState()
 {
-	ServerState state;
-
-	//I do not know if it is necessary to initiate a lock in order
-	//to read a shared variable.
-	LockState();
-	state = m_state;
-	UnlockState();
-
-	return state;
+	lock_guard<shared_mutex> lck(m_stateMutex);
+	return m_state;
 }
 
 void ServerManager::SetState(ServerState state)
 {
-	//Must lock and unlock the mutex to modify the state.
-	LockState();
+	m_stateMutex.lock();
 	m_state = state;
-	UnlockState();
+	m_stateMutex.unlock();
 }
 
 int ServerManager::GetPortNumber()
 {
-	int port;
-	
-	LockPort();
-	port = m_portNumber;
-	UnlockPort();
-
-	return port;
+	lock_guard<shared_mutex> lck(m_portMutex);
+	return m_portNumber;
 }
 
 void ServerManager::SetPortNumber(int port)
 {
-	LockPort();
+	m_portMutex.lock();
 	m_portNumber = port;
-	UnlockPort();
+	m_portMutex.unlock();
 
 	if (GetState() == ServerState::RUNNING)
 	{
@@ -351,9 +258,8 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not create the listening socket for ServerManager.";
-		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-		fileName += CONNECTION_ERROR_FILE;
-		LogError(fileName, error);
+		LogError(CONNECTION_ERROR_LOG, error);
+
 		return INVALID_SOCKET;
 	}
 
@@ -363,9 +269,8 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not bind socket " + static_cast<int>(socket);
-		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-		fileName += CONNECTION_ERROR_FILE;
-		LogError(fileName, error);
+		LogError(CONNECTION_ERROR_LOG, error);
+
 		closesocket(socket);
 		return INVALID_SOCKET;
 	}
@@ -376,9 +281,8 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not listen on socket " + static_cast<int>(socket);
-		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-		fileName += CONNECTION_ERROR_FILE;
-		LogError(fileName, error);
+		LogError(CONNECTION_ERROR_LOG, error);
+
 		closesocket(socket);
 		return INVALID_SOCKET;
 	}
@@ -394,14 +298,14 @@ SSL_CTX* ServerManager::CreateSSLContext()
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx)
 	{
-		LogSSLError(SSL_ERROR_FILE);
+		LogSSLError();
 		return nullptr;
 	}
 
 	return ctx;
 }
 
-bool ServerManager::ConfigureSSLContext()
+bool ServerManager::ConfigureSSLContext(SSL_CTX *ctx)
 {
 	//Path to the certificate.
 	string cPath = string(SSL_PEM_LOCATIONS);
@@ -411,24 +315,20 @@ bool ServerManager::ConfigureSSLContext()
 	pkPath += PRIVATE_KEY_FILE;
 
 	//I'm not sure what this does, I just know it has to be done.
-	SSL_CTX_set_ecdh_auto(m_sslContext, 1);
+	SSL_CTX_set_ecdh_auto(ctx, 1);
 	//Tell OpenSSL where to find our certificate.
-	if (SSL_CTX_use_certificate_file(m_sslContext, cPath.c_str(), SSL_FILETYPE_PEM) < 0)
+	if (SSL_CTX_use_certificate_file(ctx, cPath.c_str(), SSL_FILETYPE_PEM) < 0)
 	{
-		string errLoc = string(SSL_ERROR_FILE_LOCATION);
-		errLoc += SSL_ERROR_FILE;
-		LogSSLError(errLoc);
+		LogSSLError();
 
 		return false;
 	}
 	//Tell OpenSSL where to find our password.
-	SSL_CTX_set_default_passwd_cb(m_sslContext, PasswordCallBack);
+	SSL_CTX_set_default_passwd_cb(ctx, PasswordCallBack);
 	//Tell OpenSSL where to find our private key.
-	if (SSL_CTX_use_PrivateKey_file(m_sslContext, pkPath.c_str(), SSL_FILETYPE_PEM) < 0)
+	if (SSL_CTX_use_PrivateKey_file(ctx, pkPath.c_str(), SSL_FILETYPE_PEM) < 0)
 	{
-		string errLoc = string(SSL_ERROR_FILE_LOCATION);
-		errLoc += SSL_ERROR_FILE;
-		LogSSLError(errLoc);
+		LogSSLError();
 
 		return false;
 	}
@@ -444,16 +344,16 @@ bool ServerManager::InitOpenSSL()
 	OpenSSL_add_ssl_algorithms();
 
 	//Create the SSL context.
-	m_sslContext = CreateSSLContext();
+	if (m_sslContext)
+		SSL_CTX_free(m_sslContext);
+	m_sslContext = SSL_CTX_new(SSLv23_server_method());
 	if (m_sslContext == nullptr)
 	{
-		string fileLoc = string(SSL_ERROR_FILE_LOCATION);
-		fileLoc += SSL_ERROR_FILE;
-		LogSSLError(fileLoc);
+		LogSSLError();
 		return m_bOpenSSL = false;
 	}
 	//Configure the SSL context.
-	return m_bOpenSSL = ConfigureSSLContext();
+	return m_bOpenSSL = ConfigureSSLContext(m_sslContext);
 }
 void ServerManager::CleanupOpenSSL()
 {
@@ -477,9 +377,7 @@ bool ServerManager::InitWSA()
 		error += time(nullptr);
 		error += " WSAStartup failed with error: ";
 		error += result;
-		string fileName = string(CONNECTION_ERROR_FILE_LOCATION);
-		fileName += CONNECTION_ERROR_FILE;
-		LogError(fileName, error);
+		LogError(CONNECTION_ERROR_LOG, error);
 		CleanupWSA();
 		return m_bWSA = false;
 	}
@@ -496,17 +394,13 @@ void ServerManager::CloseConnections()
 {
 	if (m_listenerSocket)
 		closesocket(m_listenerSocket);
-	if (m_clientSocket)
-		closesocket(m_clientSocket);
-	if (m_clientSSL)
-		SSL_free(m_clientSSL);
-	if (m_sslContext)
-		SSL_CTX_free(m_sslContext);
 }
 
-void ServerManager::LogSSLError(const std::string& fileName)
+void ServerManager::LogSSLError()
 {
-	FILE* err = fopen(fileName.c_str(), "w");
+	string fName = string(ERROR_LOGS_LOCATION);
+	fName += SSL_ERROR_LOG;
+	FILE* err = fopen(fName.c_str(), "w");
 	//Log the OpenSSL error.
 	ERR_print_errors_fp(err);
 	fclose(err);
@@ -514,34 +408,41 @@ void ServerManager::LogSSLError(const std::string& fileName)
 
 void ServerManager::LogError(const std::string& fileName, const std::string& errorMessage)
 {
+	fstream file = fstream(fileName, std::ios_base::in);
 	FILE* err = fopen(fileName.c_str(), "w");
 	//Log the error. Might be best to change this to C++ style to avoid any future issues.
-	fputs(errorMessage.c_str(), err);
-	fclose(err);
+	if (file.is_open())
+	{
+		file << errorMessage.c_str() << std::endl;
+		file.close();
+	}
 }
 
 void ServerManager::LogConnection(const std::string & fileName, const std::string & message, int ip)
 {
 	fstream file = fstream(fileName, std::ios_base::in);
-	string fullMessage = string(message);
-	fullMessage += " from IP:" + ip;
+	string fullMessage = string();
+	fullMessage += time(nullptr);
+	fullMessage += " " + message + " from IP: ";
+	fullMessage += ip;
 	
 	if (file.is_open())
 	{
-		file.write(fullMessage.c_str(), fullMessage.size() + 1);
+		file << fullMessage.c_str() << std::endl;
 		file.close();
 	}
 }
 
-void ServerManager::LogLoginAttemp(const std::string & fileName, const std::string & user, bool successful)
+void ServerManager::LogLoginAttemp(const std::string & fileName, const std::string & user, bool successful, int ip)
 {
 	fstream file = fstream(fileName, std::ios_base::in);
 	string message = string(successful ? "Successful " : "Unsuccessful ");
-	message += " login attemp by " + user;
+	message += " login attemp by " + user + " from IP: ";
+	message += ip;
 
 	if (file.is_open())
 	{
-		file.write(message.c_str(), message.size() + 1);
+		file << message.c_str() << std::endl;
 		file.close();
 	}
 }

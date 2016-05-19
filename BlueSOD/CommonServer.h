@@ -1,6 +1,9 @@
 #pragma once
 #include <memory>
 #include <openssl\ssl.h>
+
+//The maximum size of a message a client can send.
+#define BUFFER_SIZE 1024
 //Defines the state of the server. Names are self explanatory.
 enum ServerState
 {
@@ -26,21 +29,28 @@ struct ClientInfo
 	DWORD bytesRecv;
 	UserAuthentication auth;
 
-	ClientInfo()
-		: socket{ INVALID_SOCKET },
-		ssl{ nullptr },
+	ClientInfo(SOCKET s, SSL* sslObject, UserAuthentication user_auth)
+		: socket{ s },
+		ssl{ sslObject },
 		wsaBuffer{},
 		bytesSend{ 0 },
 		bytesRecv{ 0 },
-		auth { UserAuthentication::INVALID }
+		auth { user_auth }
 	{
-		wsaBuffer.buf = nullptr;
+		wsaBuffer.buf = new char[BUFFER_SIZE];
 		wsaBuffer.len = 0;
+		bytesRecv = bytesSend = 0;
 	}
+	ClientInfo()
+		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::INVALID) {}
+
 
 	~ClientInfo()
 	{
 		if (ssl != nullptr)
 			SSL_free(ssl);
+		if (socket != INVALID_SOCKET)
+			closesocket(socket);
+		delete[] wsaBuffer.buf;
 	}
 };
