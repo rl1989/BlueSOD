@@ -4,8 +4,6 @@
 #include <time.h>
 #include <openssl/crypto.h>
 
-
-
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "libeay32.lib")
 #pragma comment(lib, "ssleay32.lib")
@@ -199,6 +197,10 @@ bool ServerManager::Run(ServerState state)
 
 				break;
 		}
+
+		/*
+			TO DO: Check for any fulfilled requests.
+		*/
 
 		curState = GetState();
 	}
