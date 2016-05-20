@@ -1,7 +1,7 @@
 #pragma once
+#include "sqlite3.h"
 #include <string>
 #include <mutex>
-#include "sqlite3.h"
 
 #define DEFAULT_USER_DB_LOCATION "user.db"
 

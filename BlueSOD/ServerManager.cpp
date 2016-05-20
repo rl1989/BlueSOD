@@ -1,3 +1,4 @@
+#pragma once
 #include "ServerManager.h"
 #include "TS_Stack.h"
 #include <stdio.h>
@@ -77,6 +78,7 @@ ClientInfo ServerManager::AcceptIncomingConnection()
 
 	//Generate the connection details.
 	info.socket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
+	info.address = addr.sin_addr.S_un.S_addr;
 	if (info.socket == INVALID_SOCKET)
 	{
 		string fileName = string(CONNECTION_ERROR_LOG);

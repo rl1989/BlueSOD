@@ -1,3 +1,4 @@
+#pragma once
 //#define WIN32
 /* crypto/threads/mttest.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
@@ -71,20 +72,33 @@
 using std::thread;
 using std::vector;
 using std::shared_mutex;
-
-void thread_setup(void);
-void thread_cleanup(void);
-
-void win32_locking_callback(int mode, int type, char *file, int line);
+//
+//void thread_setup(void);
+//void thread_cleanup(void);
+//
+//void win32_locking_callback(int mode, int type, char *file, int line);
 
 //static HANDLE *lock_cs;
 //static vector<shared_mutex> openSSLMutexes;
-shared_mutex* openSSLMutexes;
+static shared_mutex* openSSLMutexes;
 
-void thread_setup(void)
+
+static void win32_locking_callback(int mode, int type, char *file, int line)
 {
-	int i;
+	if (mode & CRYPTO_LOCK)
+	{
+		//WaitForSingleObject(lock_cs[type], INFINITE);
+		openSSLMutexes[type].lock_shared();
+	}
+	else
+	{
+		//ReleaseMutex(lock_cs[type]);
+		openSSLMutexes[type].unlock_shared();
+	}
+}
 
+static void thread_setup()
+{
 	//lock_cs = static_cast<HANDLE*>(OPENSSL_malloc(CRYPTO_num_locks() * sizeof(HANDLE)));
 	//openSSLMutexes = vector<shared_mutex>(CRYPTO_num_locks());
 	openSSLMutexes = new shared_mutex[CRYPTO_num_locks()]{};
@@ -100,27 +114,13 @@ void thread_setup(void)
 	
 }
 
-void thread_cleanup(void)
+static void thread_cleanup()
 {
 	//int i;
 
-	CRYPTO_set_locking_callback(NULL);
+	CRYPTO_set_locking_callback(nullptr);
 	delete[] openSSLMutexes;
 	/*for (i = 0; i<CRYPTO_num_locks(); i++)
 		CloseHandle(lock_cs[i]);*/
 	//OPENSSL_free(lock_cs);
-}
-
-void win32_locking_callback(int mode, int type, char *file, int line)
-{
-	if (mode & CRYPTO_LOCK)
-	{
-		//WaitForSingleObject(lock_cs[type], INFINITE);
-		openSSLMutexes[type].lock_shared();
-	}
-	else
-	{
-		//ReleaseMutex(lock_cs[type]);
-		openSSLMutexes[type].unlock_shared();
-	}
 }

@@ -1,7 +1,9 @@
 #pragma once
+#ifndef _WINSOCK2API_
+#include <WinSock2.h>
+#endif
 #include <memory>
 #include <openssl\ssl.h>
-#include <WinSock2.h>
 
 //The maximum size of a message a client can send.
 #define BUFFER_SIZE 1024
@@ -29,14 +31,28 @@ struct ClientInfo
 	DWORD bytesSend;
 	DWORD bytesRecv;
 	UserAuthentication auth;
+	ULONG address;
 
+	ClientInfo(ClientInfo&& info)
+		: socket{ info.socket },
+		ssl{ info.ssl },
+		bytesRecv{ info.bytesRecv },
+		bytesSend{ info.bytesSend },
+		auth{ info.auth },
+		address{ info.address }
+	{
+		wsaBuffer.buf = info.wsaBuffer.buf;
+		wsaBuffer.len = info.wsaBuffer.len;
+		info.wsaBuffer.buf = nullptr;
+	}
+	ClientInfo(const ClientInfo& info) = default;
 	ClientInfo(SOCKET s, SSL* sslObject, UserAuthentication user_auth)
 		: socket{ s },
 		ssl{ sslObject },
-		wsaBuffer{},
-		bytesSend{ 0 },
-		bytesRecv{ 0 },
-		auth { user_auth }
+		bytesSend{},
+		bytesRecv{},
+		auth { user_auth },
+		address{}
 	{
 		wsaBuffer.buf = new char[BUFFER_SIZE];
 		wsaBuffer.len = 0;
@@ -51,6 +67,7 @@ struct ClientInfo
 			SSL_free(ssl);
 		if (socket != INVALID_SOCKET)
 			closesocket(socket);
-		delete[] wsaBuffer.buf;
+		if (wsaBuffer.buf != nullptr)
+			delete[] wsaBuffer.buf;
 	}
 };

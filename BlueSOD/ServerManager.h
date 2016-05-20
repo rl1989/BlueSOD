@@ -1,5 +1,7 @@
 #pragma once
+#ifndef _WINSOCK2API_
 #include <WinSock2.h>
+#endif
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/bio.h>
@@ -14,23 +16,11 @@
 #include "SSL_concurrency.h"
 #include "UserVerifier.h"
 
+extern void thread_cleanup();
+extern void thread_setup();
+extern void win32_locking_callback(int, int, char*, int);
+
 using std::string;
-
-/*
-	FINALLY FOUND HOW IT WORKS:
-
-	SSL_accept does not call accept for you. It expects that accept has already been called.
-
-	The correct sequence of calls is:
-
-	socket
-	bind
-	listen
-	accept
-	SSL_new
-	SSL_set_fd
-	SSL_accept
-*/
 
 //The port the server will isten on.
 #define SERVER_PORT 2048

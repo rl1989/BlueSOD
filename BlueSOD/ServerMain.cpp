@@ -1,3 +1,4 @@
+#pragma once
 /*#include "ServerConcurrency.h"
 #include "ServerManager.h"
 #include <cstring>
@@ -92,7 +93,7 @@ int main()
 	addr.sin_family = AF_INET;
 	addr.sin_addr.S_un.S_addr = ADDR_ANY;
 	addr.sin_port = htons(2048);
-	/*bind(s, (const sockaddr *)&addr, sizeof(addr));
+	/*bind(s, (const *)&addr, sizeof(addr));
 	listen(s, SOMAXCONN);
 	SOCKET client = accept(s, nullptr, nullptr);*/
 	

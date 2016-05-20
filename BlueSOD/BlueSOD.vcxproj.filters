@@ -39,7 +39,7 @@
     <ClInclude Include="SQLiteDB.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="sqlite3.h">
+    <ClInclude Include="..\..\..\BlueSOD\sqlite3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,14 +62,8 @@
     <ClCompile Include="SQLiteDB.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="sqlite3.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="sqlite3.def">
+    <ClCompile Include="..\..\..\BlueSOD\sqlite3.c">
       <Filter>Source Files</Filter>
-    </None>
-    <None Include="sqlite3.dll" />
+    </ClCompile>
   </ItemGroup>
 </Project>

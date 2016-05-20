@@ -126,30 +126,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\BlueSOD\sqlite3.h" />
     <ClInclude Include="CommonServer.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="ServerConcurrency.h" />
     <ClInclude Include="ServerManager.h" />
-    <ClInclude Include="sqlite3.h" />
     <ClInclude Include="SQLiteDB.h" />
     <ClInclude Include="SSL_concurrency.h" />
     <ClInclude Include="TS_Stack.h" />
     <ClInclude Include="UserVerifier.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\BlueSOD\sqlite3.c" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="ServerManager.cpp" />
     <ClCompile Include="SQLiteDB.cpp" />
     <ClCompile Include="TS_Stack.cpp" />
     <ClCompile Include="UserVerifier.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="sqlite3.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="sqlite3.def" />
-    <None Include="sqlite3.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

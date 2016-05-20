@@ -20,42 +20,38 @@ class TS_Stack :
 private:
 	shared_mutex m;
 public:
-	TS_Stack()
-		: m{},
-		stack<T>{}
-	{}
 
-	void push(const T& e)
+	void Push(const T& e)
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->push(e);
 	}
-	void push(T&& e)
+	void Push(T&& e)
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->push(e);
 	}
-	void pop()
+	void Pop()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		static_cast<stack<T>*>(this)->pop();
 	}
-	T& top()
+	T& Top()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		return static_cast<stack<T>*>(this)->top();
 	}
-	int size()
+	int Size()
 	{
 		lock_guard<shared_mutex> lck(m);
 
 		return static_cast<stack<T>*>(this)->size();
 	}
-	bool empty()
+	bool Empty()
 	{
 		lock_guard<shared_mutex> lck(m);
 

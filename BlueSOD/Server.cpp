@@ -1,3 +1,4 @@
+#pragma once
 #include "Server.h"
 
 //Sizes the vector with the anticipation that more connections will come.

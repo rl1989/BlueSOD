@@ -1,3 +1,4 @@
+#pragma once
 #include "SQLiteDB.h"
 
 bool SQLiteDb::ExecuteStatement(string statement)

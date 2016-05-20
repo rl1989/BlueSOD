@@ -1,3 +1,4 @@
+#pragma once
 #include "UserVerifier.h"
 
 void UserVerifier::OpenDb(const string & newDb)
@@ -18,12 +19,12 @@ ClientInfo UserVerifier::GetFulfilledRequest()
 {
 	if (finished.size() == 0)
 		return ClientInfo{};
-	ClientInfo info = finished.top();
+	ClientInfo info = std::move(finished.Top());
 	finished.pop();
 	return std::move(info);
 }
 
 bool UserVerifier::HasFulfilledRequest()
 {
-	return !finished.empty();
+	return !finished.Empty();
 }

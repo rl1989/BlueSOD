@@ -1,15 +1,13 @@
 #pragma once
+#ifndef _WINSOCK2API_
 #include <WinSock2.h>
+#endif
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <iostream>
 #include <vector>
-#include <Windows.h>
 #include "CommonServer.h"
 #include "ServerConcurrency.h"
-
-//The maximum size of a message sent from/to the client
-#define BUFFER_SIZE 2048
 
 using std::vector;
 
