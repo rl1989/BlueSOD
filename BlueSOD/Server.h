@@ -29,22 +29,32 @@ private:
 
 public:
 	//Constructor takes in the unique information regarding the initial connecting client.
-	Server(SOCKET client, SSL* ssl);
+	Server(const Connection& connection);
 	~Server() {}
 
 	//Add a client to the server.
-	void AddClient(SOCKET client, SSL* ssl);
+	void AddClient(const Connection& client);
 	//Returns the number of clients currently connected.
 	int NumberOfClients();
 	//Initializes the server. This is where the code for handling communication will be.
 	//TO DO: Implement.
 	void Run();
 	//Sets the state of the Server.
-	void SetServerState(ServerState state)
+	inline void SetState(ServerState state)
 	{
-		m_stateMutex.lock();
+		lock_guard<shared_mutex> lck(m_stateMutex);
+
 		m_state = state;
-		m_stateMutex.unlock();
+	}
+	inline ServerState GetState()
+	{
+		lock_guard<shared_mutex> lck(m_stateMutex);
+
+		return m_state;
+	}
+	inline bool IsRunning()
+	{
+		return GetState() == ServerState::RUNNING;
 	}
 	void ReconnectWithClientsOn(int port);
 
