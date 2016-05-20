@@ -12,6 +12,7 @@
 #include "ServerConcurrency.h"
 #include "CommonServer.h"
 #include "SSL_concurrency.h"
+#include "UserVerifier.h"
 
 using std::string;
 
@@ -97,15 +98,19 @@ private:
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
+	/*
+		Verifies user login information on a separate thread.
+	*/
+	UserVerifier m_userVerifier;
 
 public:
 	//The default constructor.
 	ServerManager()
-		: ServerManager(SERVER_PORT)
+		: ServerManager(SERVER_PORT, DEFAULT_USER_DB_LOCATION)
 	{}
 	//This constructor allows the administrator to listen on whatever port
 	//he/she deems necessary.
-	ServerManager(int port)
+	ServerManager(int port, const string& dbName)
 		: m_listenerSocket{ INVALID_SOCKET },
 		m_portNumber{ port },
 		m_sslContext{ nullptr },
@@ -116,8 +121,8 @@ public:
 		m_stateMutex{},
 		m_serverManagerMutex{},
 		m_portMutex{},
-		m_runMutex{}
-
+		m_runMutex{},
+		m_userVerifier{ dbName }
 	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
