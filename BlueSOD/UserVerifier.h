@@ -1,10 +1,13 @@
 #pragma once
 #include <string>
 #include <utility>
+#include <mutex>
 #include "CommonServer.h"
 #include "TS_Stack.h"
+#include "SQLiteDB.h"
 
 using std::string;
+using std::mutex;
 
 /*
 	This class opens the User Information database and verifies that the information passed to it is
@@ -20,16 +23,61 @@ class UserVerifier
 private:
 	TS_Stack<ClientInfo> queue;
 	TS_Stack<ClientInfo> finished;
+	SQLiteDb *db;
+	mutex dbMutex;
 public:
-	UserVerifier(const string& db);
-	~UserVerifier();
+	UserVerifier(UserVerifier&& uv)
+		:db{uv.db},
+		dbMutex{}
+	{
+		for (int i = 0; i < uv.queue.size(); i++)
+		{
+			queue.push(uv.queue.top());
+			uv.queue.pop();
+		}
+		for (int i = 0; i < uv.finished.size(); i++)
+		{
+			finished.push(uv.finished.top());
+			uv.finished.pop();
+		}
+		uv.db = nullptr;
+	}
+	UserVerifier(const string& dbName)
+		:db{ new SQLiteDb(dbName) },
+		queue{},
+		finished{},
+		dbMutex{}
+	{}
+	UserVerifier()
+		: db{ nullptr },
+		queue{},
+		finished{},
+		dbMutex{}
+	{}
+	~UserVerifier()
+	{
+		if (db)
+			delete db;
+	}
 
-	void ChangeDb(const string& newDb);
+	/*
+		Opens a new database with the name newDb. If one is already open, it is closed and then the new one is
+		opened.
+	*/
+	void OpenDb(const string& newDb);
+	/*
+		Adds info to the queue for verification.
+	*/
 	void AddRequest(const ClientInfo& info);
+	/*
+		Returns the last request that was fulfilled and removes it from the stack. If a request has not been fulfilled
+		(i.e. finished.size() == 0) then this function will return a ClientInfo object with default values. To be
+		completely efficient, HasFulfilledRequest() should be called first.
+	*/
 	ClientInfo GetFulfilledRequest();
-	bool HasFulFilledRequest();
-private:
-	bool OpenDb(const string& db);
-	void CloseDb();
+	/*
+		Checks to see if GetFulfilledRequest() will return a valid ClientInfo object.
+	*/
+	bool HasFulfilledRequest();
 };
 
