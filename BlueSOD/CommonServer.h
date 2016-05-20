@@ -23,51 +23,60 @@ enum class UserAuthentication
 struct ClientInfo
 {
 	//Unique client connection information.
-	SOCKET socket;
-	SSL* ssl;
+	Connection connection;
 	//Required for WSA messages.
 	WSABUF wsaBuffer;
 	//These determine how much was sent/received.
 	DWORD bytesSend;
 	DWORD bytesRecv;
-	UserAuthentication auth;
-	ULONG address;
 
 	ClientInfo(ClientInfo&& info)
-		: socket{ info.socket },
-		ssl{ info.ssl },
+		: connection{ info.connection.socket, info.connection.ssl, info.connection.address, info.connection.authenticityStatus },
 		bytesRecv{ info.bytesRecv },
-		bytesSend{ info.bytesSend },
-		auth{ info.auth },
-		address{ info.address }
+		bytesSend{ info.bytesSend }
 	{
 		wsaBuffer.buf = info.wsaBuffer.buf;
 		wsaBuffer.len = info.wsaBuffer.len;
 		info.wsaBuffer.buf = nullptr;
 	}
 	ClientInfo(const ClientInfo& info) = default;
-	ClientInfo(SOCKET s, SSL* sslObject, UserAuthentication user_auth)
-		: socket{ s },
-		ssl{ sslObject },
+	ClientInfo(Connection client)
+		: connection { client.socket, client.ssl, client.address, client.authenticityStatus },
 		bytesSend{},
-		bytesRecv{},
-		auth { user_auth },
-		address{}
+		bytesRecv{}
 	{
 		wsaBuffer.buf = new char[BUFFER_SIZE];
 		wsaBuffer.len = 0;
 		bytesRecv = bytesSend = 0;
 	}
 	ClientInfo()
-		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::INVALID) {}
+		: ClientInfo(Connection{}) {}
 
 	~ClientInfo()
 	{
-		if (ssl != nullptr)
-			SSL_free(ssl);
-		if (socket != INVALID_SOCKET)
-			closesocket(socket);
+		if (connection.ssl != nullptr)
+			SSL_free(connection.ssl);
+		if (connection.socket != INVALID_SOCKET)
+			closesocket(connection.socket);
 		if (wsaBuffer.buf != nullptr)
 			delete[] wsaBuffer.buf;
 	}
+};
+
+struct Connection
+{
+	SOCKET socket;
+	SSL* ssl;
+	ULONG address;
+	UserAuthentication authenticityStatus;
+
+	Connection()
+		: Connection(INVALID_SOCKET, nullptr, ULONG{}, UserAuthentication::INVALID)
+	{}
+	Connection(SOCKET s, SSL* sslc, ULONG addr, UserAuthentication auth)
+		: socket{s},
+		ssl{sslc},
+		address{addr},
+		authenticityStatus{auth}
+	{}
 };
