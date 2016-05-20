@@ -21,6 +21,7 @@ extern void thread_setup();
 extern void win32_locking_callback(int, int, char*, int);
 
 using std::string;
+using std::shared_ptr;
 
 //The port the server will isten on.
 #define SERVER_PORT 2048
@@ -78,7 +79,7 @@ private:
 	ServerState m_state;
 	//The Server. This is where connections will be passed to once they are initialized and the
 	//user is logged in.
-	std::shared_ptr<Server> m_server;
+	shared_ptr<Server> m_server;
 	//This guarantees that the state of the ServerManager will be modified by one thread at a time.
 	shared_mutex m_stateMutex;
 	//This guarantees that the ServerManager will be modified by one thread at a time.
@@ -91,7 +92,7 @@ private:
 	/*
 		Verifies user login information on a separate thread.
 	*/
-	UserVerifier m_userVerifier;
+	shared_ptr<UserVerifier> m_userVerifier;
 
 public:
 	//The default constructor.
@@ -147,6 +148,14 @@ private:
 	*/
 	void Cleanup();
 	/*
+		Reset the listening socket.
+	*/
+	bool Reset();
+	/*
+		This function is used for processing incoming connections.
+	*/
+	bool Running();
+	/*
 		Open the ServerManager for connections on port. If there is another open socket, it
 		will be closed. MAY GET DELETED.
 
@@ -163,9 +172,11 @@ private:
 		
 		Return value:
 			The socket of the accepted connection (i.e. the client).
-			INVALID_SOCKET is returned if there was an error connecting to the client.
+			If a SOCKET connection was failed to establish, then no connection could be created. It's
+			socket member will be set to INVALID_SOCKET.
+			If an SSL connection failed, then its ssl member will be set to nullptr.
 	*/
-	ClientInfo AcceptIncomingConnection();
+	Connection AcceptIncomingConnection();
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).
 	void StopAcceptingConnections();

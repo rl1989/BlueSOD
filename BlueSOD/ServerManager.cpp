@@ -25,17 +25,39 @@ ServerManager::~ServerManager()
 
 bool ServerManager::Init()
 {
+	if (!m_bOpenSSL)
+	{
+		
+	}
+	
+
 	//WSA isn't initialized so initialize it.
 	if (!m_bWSA)
-		InitWSA();
+	{
+		//WSA is not available. Cannot proceed without WSA.
+		if (!InitWSA())
+		{
+			string error = string();
+			error += time(nullptr);
+			error += " WSA is not initialized.";
+			LogError(CONNECTION_ERROR_LOG, error);
+			return false;
+		}
+	}
 	//OpenSSL isn't initialized so initialize it.
 	if (!m_bOpenSSL)
 	{
 		thread_setup();
-		InitOpenSSL();
+		if (!InitOpenSSL())
+		{
+			string error = string();
+			error += time(nullptr);
+			error += " OpenSSL is not initialized.";
+			LogError(CONNECTION_ERROR_LOG, error);
+		}
 	}
 	
-	return m_bWSA;
+	return true;
 }
 
 void ServerManager::Cleanup()
@@ -45,6 +67,57 @@ void ServerManager::Cleanup()
 	thread_cleanup();
 	CleanupOpenSSL();
 	CleanupWSA();
+}
+
+bool ServerManager::Reset()
+{
+	closesocket(m_listenerSocket);
+	if (!OpenForConnections(GetPortNumber()))
+	{
+		string errorMsg = string();
+		errorMsg += time(nullptr);
+		errorMsg += " Could not open port ";
+		errorMsg += GetPortNumber();
+		errorMsg += " for listening on ServerManager.";
+		LogError(CONNECTION_ERROR_LOG, errorMsg);
+
+		return false;
+	}
+	return true;
+}
+
+bool ServerManager::Running()
+{
+	if (!IsListening())
+	{
+		if (!OpenForConnections(GetPortNumber()))
+		{
+			string errorMsg = string();
+			errorMsg += time(nullptr);
+			errorMsg += " Could not open port ";
+			errorMsg += GetPortNumber();
+			errorMsg += " for listening on ServerManager.";
+			LogError(CONNECTION_ERROR_LOG, errorMsg);
+
+			return false;
+		}
+	}
+
+	Connection info = AcceptIncomingConnection();
+	if (info.ssl != nullptr)
+	{
+		//Pawn info off to another thread for user authentication.
+		if (m_userVerifier)
+		{
+			
+		}
+		else
+		{
+			m_userVerifier = shared_ptr<UserVerifier>();
+			//m_server = new Server(info.socket, info.ssl);
+		}
+	}
+	return true;
 }
 
 bool ServerManager::OpenForConnections(int port)
@@ -66,20 +139,20 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-ClientInfo ServerManager::AcceptIncomingConnection()
+Connection ServerManager::AcceptIncomingConnection()
 {
-	ClientInfo info{};
 	//WSA must be initialized and the server must be in a running state to accept connections.
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
-		return std::move(info);
+		return Connection{};
 
 	struct sockaddr_in addr;
 	int len = sizeof(addr);
+	Connection connection;
 
 	//Generate the connection details.
-	info.socket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
-	info.address = addr.sin_addr.S_un.S_addr;
-	if (info.socket == INVALID_SOCKET)
+	connection.socket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
+	connection.address = addr.sin_addr.S_un.S_addr;
+	if (connection.socket == INVALID_SOCKET)
 	{
 		string fileName = string(CONNECTION_ERROR_LOG);
 		string msg = string();
@@ -87,23 +160,24 @@ ClientInfo ServerManager::AcceptIncomingConnection()
 		msg += " Could not accept connection";
 		LogConnection(fileName, msg, addr.sin_addr.S_un.S_addr);
 
-		return std::move(info);
+		return Connection{};
 	}
-
+	
+	//Associate the accepted socket with a new ssl object.
 	if (m_sslContext != nullptr)
 	{
-		info.ssl = SSL_new(m_sslContext);
-		SSL_set_fd(info.ssl, info.socket);
-		if (SSL_accept(info.ssl) <= 0)
+		connection.ssl = SSL_new(m_sslContext);
+		SSL_set_fd(connection.ssl, connection.socket);
+		if (SSL_accept(connection.ssl) <= 0)
 		{
 			LogSSLError();
 
-			SSL_free(info.ssl);
-			info.ssl = nullptr;
+			SSL_free(connection.ssl);
+			connection.ssl = nullptr;
 		}
 	}
 
-	return std::move(info);
+	return connection;
 }
 
 void ServerManager::StopAcceptingConnections()
@@ -122,31 +196,14 @@ bool ServerManager::Run(ServerState state)
 	//Initialize the OpenSSL and WSA libraries first.
 	if (!Init())
 	{
-		//OpenSSL is not available.
-		if (!m_bOpenSSL)
-		{
-			string error = string();
-			error += time(nullptr);
-			error += " OpenSSL is not initialized.";
-			LogError(CONNECTION_ERROR_LOG, error);
-		}
-		//WSA is not available. Cannot proceed without WSA.
-		//Will probably end up throwing an error here if WSA is not available.
-		if (!m_bWSA)
-		{
-			string error = string();
-			error += time(nullptr);
-			error += " WSA is not initialized.";
-			LogError(CONNECTION_ERROR_LOG, error);
-			return false;
-		}
+		return false;
 	}
 
 	//A Server is already running, so set its state to state.
 	//This may be unnecessary whenever Server is fully functional.
 	if (m_server != nullptr)
 	{
-		m_server->SetServerState(state);
+		m_server->SetState(state);
 	}
 
 	SetState(state);
@@ -159,43 +216,13 @@ bool ServerManager::Run(ServerState state)
 			//open a new one. Then send a message to any clients telling them to use the new port.
 			case ServerState::RESET:
 				//m_server->CloseConnections();
-				closesocket(m_listenerSocket);
-				if (!OpenForConnections(GetPortNumber()))
-				{
-					string errorMsg = string();
-					errorMsg += time(nullptr);
-					errorMsg += " Could not open port ";
-					errorMsg += GetPortNumber();
-					errorMsg += " for listening on ServerManager.";
-					LogError(CONNECTION_ERROR_LOG, errorMsg);
-
+				if (!Reset())
 					return false;
-				}
-
 				//m_server->ReconnectWithClientsOn(GetPortNumber());
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				if (!IsListening())
-				{
-					if (!OpenForConnections(GetPortNumber()))
-					{
-						string errorMsg = string();
-						errorMsg += time(nullptr);
-						errorMsg += " Could not open port ";
-						errorMsg += GetPortNumber();
-						errorMsg += " for listening on ServerManager.";
-						LogError(CONNECTION_ERROR_LOG, errorMsg);
-
-						return false;
-					}
-				}
-
-				ClientInfo info = AcceptIncomingConnection();
-				if (info.ssl != nullptr)
-				{
-					//Pawn info off to another thread for user authentication.
-				}
+				
 
 				break;
 		}
@@ -212,6 +239,8 @@ bool ServerManager::Run(ServerState state)
 	}
 
 	m_runMutex.unlock();
+
+	return true;
 }
 
 ServerState ServerManager::GetState()
