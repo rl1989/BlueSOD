@@ -25,12 +25,6 @@ ServerManager::~ServerManager()
 
 bool ServerManager::Init()
 {
-	if (!m_bOpenSSL)
-	{
-		
-	}
-	
-
 	//WSA isn't initialized so initialize it.
 	if (!m_bWSA)
 	{
