@@ -29,11 +29,11 @@ private:
 
 public:
 	//Constructor takes in the unique information regarding the initial connecting client.
-	Server(const Connection& connection);
+	Server(const ClientInfo& connection);
 	~Server() {}
 
 	//Add a client to the server.
-	void AddClient(const Connection& client);
+	void AddClient(const ClientInfo& client);
 	//Returns the number of clients currently connected.
 	int NumberOfClients();
 	//Initializes the server. This is where the code for handling communication will be.
