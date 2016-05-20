@@ -15,7 +15,7 @@ Tells whether the user was authenticated or if a result is still pending.
 */
 enum class UserAuthentication
 {
-	VALID, INVALID, PENDING, NO_REQUEST
+	VALID, INVALID, PENDING
 };
 //Holds information unique to the client.
 struct ClientInfo
@@ -43,7 +43,7 @@ struct ClientInfo
 		bytesRecv = bytesSend = 0;
 	}
 	ClientInfo()
-		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::NO_REQUEST) {}
+		: ClientInfo(INVALID_SOCKET, nullptr, UserAuthentication::INVALID) {}
 
 	~ClientInfo()
 	{
