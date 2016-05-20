@@ -1,15 +1,12 @@
 #include "UserVerifier.h"
 
-
-
-UserVerifier::UserVerifier(const string& db)
+void UserVerifier::OpenDb(const string & newDb)
 {
-
-}
-
-
-UserVerifier::~UserVerifier()
-{
+	dbMutex.lock();
+	if (db)
+		delete db;
+	db = new SQLiteDb(newDb);
+	dbMutex.unlock();
 }
 
 void UserVerifier::AddRequest(const ClientInfo & info)
@@ -19,12 +16,14 @@ void UserVerifier::AddRequest(const ClientInfo & info)
 
 ClientInfo UserVerifier::GetFulfilledRequest()
 {
+	if (finished.size() == 0)
+		return ClientInfo{};
 	ClientInfo info = finished.top();
 	finished.pop();
 	return std::move(info);
 }
 
-bool UserVerifier::HasFulFilledRequest()
+bool UserVerifier::HasFulfilledRequest()
 {
 	return !finished.empty();
 }
