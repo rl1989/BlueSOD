@@ -1,34 +1,20 @@
 #include "SQLiteDB.h"
 
-
-
-SQLiteDb::SQLiteDb()
-{
-}
-
-
-SQLiteDb::~SQLiteDb()
-{
-}
-
 bool SQLiteDb::ExecuteStatement(string statement)
 {
 	string cleanedStmt = CleanStatement(statement);
 	int res = sqlite3_prepare_v2(m_sqlObject, cleanedStmt.c_str(), cleanedStmt.size() + 1, &m_sqlStatement, nullptr);
 	if (res != SQLITE_OK)
 	{
-		m_lastErr = res;
 		return false;
 	}
 
 	res = sqlite3_step(m_sqlStatement);
 	switch (res)
 	{
-		case SQLITE_BUSY:
-			m_lastErr = SQLITE_BUSY;
-			return false;
 		case SQLITE_DONE:
 			m_hasRows = false;
+			sqlite3_reset(m_sqlStatement);
 			return true;
 		case SQLITE_ROW:
 			m_hasRows = true;
@@ -41,8 +27,7 @@ bool SQLiteDb::ExecuteStatement(string statement)
 bool SQLiteDb::OpenDb()
 {
 	int res = sqlite3_open_v2(m_dbLoc.c_str(), &m_sqlObject, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
-	if (res != SQLITE_OK)
-		m_lastErr = res;
+	
 	return res == SQLITE_OK;
 }
 

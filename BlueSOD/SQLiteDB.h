@@ -3,6 +3,8 @@
 #include <mutex>
 #include "sqlite3.h"
 
+#define DEFAULT_USER_DB_LOCATION "user.db"
+
 using std::string;
 
 class SQLiteDb
@@ -11,15 +13,29 @@ private:
 	string m_dbLoc;
 	sqlite3* m_sqlObject;
 	sqlite3_stmt* m_sqlStatement;
-	int m_lastErr;
 	bool m_hasRows;
 public:
-	SQLiteDb();
-	~SQLiteDb();
+	SQLiteDb()
+		: SQLiteDb(DEFAULT_USER_DB_LOCATION)
+	{}
+	SQLiteDb(const string& dbLocation)
+		: m_dbLoc{dbLocation},
+		m_sqlObject{ nullptr },
+		m_sqlStatement{ nullptr },
+		m_hasRows{ false }
+	{
+		OpenDb();
+	}
+	~SQLiteDb()
+	{
+		CloseDb();
+	}
 
+	bool IsOpen() { return m_sqlObject != nullptr; }
 	bool ExecuteStatement(string statement);
 	inline bool HasRows() { return m_hasRows; }
-
+	const char* GetLastErrMsg() { return sqlite3_errmsg(m_sqlObject); }
+	int GetLastErrCode() { return sqlite3_errcode(m_sqlObject); }
 
 private:
 	bool OpenDb();
