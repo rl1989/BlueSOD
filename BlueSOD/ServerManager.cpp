@@ -13,11 +13,6 @@ using std::string;
 using std::fstream;
 using std::stack;
 
-void AcceptConnections(ServerManager* sm, SOCKET s)
-{
-	
-}
-
 ServerManager::~ServerManager()
 {
 	Cleanup();
@@ -80,7 +75,7 @@ bool ServerManager::Reset()
 	return true;
 }
 
-bool ServerManager::Running()
+bool ServerManager::ProcessAConnection()
 {
 	if (!IsListening())
 	{
@@ -97,20 +92,8 @@ bool ServerManager::Running()
 		}
 	}
 
-	Connection info = AcceptIncomingConnection();
-	if (info.ssl != nullptr)
-	{
-		//Pawn info off to another thread for user authentication.
-		if (m_userVerifier)
-		{
-			
-		}
-		else
-		{
-			m_userVerifier = shared_ptr<UserVerifier>();
-			//m_server = new Server(info.socket, info.ssl);
-		}
-	}
+	m_userVerifier->AddRequest(AcceptIncomingConnection());
+
 	return true;
 }
 
@@ -216,14 +199,16 @@ bool ServerManager::Run(ServerState state)
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				
+				ProcessAConnection();
 
 				break;
 		}
 
-		/*
-			TO DO: Check for any fulfilled requests.
-		*/
+		if (m_userVerifier->HasFulfilledRequest())
+		{
+			ClientInfo client = m_userVerifier->GetFulfilledRequest();
+			m_server->AddClient(client);
+		}
 
 		curState = GetState();
 	}

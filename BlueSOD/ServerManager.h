@@ -33,11 +33,12 @@ using std::shared_ptr;
 #define PRIVATE_KEY_FILE "ricky-anthony.asuscomm.com.key.pem"
 #define PASSWORD_FILE "password.txt"
 //Locations of error files
-
-#define ERROR_LOGS_LOCATION "G:\\Ricky\\Documents\\Programming\\Tools\\SSL\\ErrorLogs\\"
+#define ERROR_LOGS_LOCATION "G:\\Ricky\\Documents\\Programming\\BlueSOD\\Error Logs\\"
 #define ERROR_LOG "ErrorLog.txt"
 #define SSL_ERROR_LOG "SSLServerErrorLog.txt"
 #define CONNECTION_ERROR_LOG "ConnectionErrorLog.txt"
+//Location of user DB
+#define USER_DB "G:\\Ricky\\Documents\\Programming\\BlueSOD\\Databases\\UserInfo.db"
 
 //Will be used to start the server. The function is passed off to std::thread with the server as an argument.
 void StartServer(std::shared_ptr<Server> server);
@@ -97,7 +98,7 @@ private:
 public:
 	//The default constructor.
 	ServerManager()
-		: ServerManager(SERVER_PORT, DEFAULT_USER_DB_LOCATION)
+		: ServerManager(SERVER_PORT, USER_DB)
 	{}
 	//This constructor allows the administrator to listen on whatever port
 	//he/she deems necessary.
@@ -113,7 +114,7 @@ public:
 		m_serverManagerMutex{},
 		m_portMutex{},
 		m_runMutex{},
-		m_userVerifier{ dbName }
+		m_userVerifier{ new UserVerifier{dbName} }
 	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
@@ -154,7 +155,7 @@ private:
 	/*
 		This function is used for processing incoming connections.
 	*/
-	bool Running();
+	bool ProcessAConnection();
 	/*
 		Open the ServerManager for connections on port. If there is another open socket, it
 		will be closed. MAY GET DELETED.
