@@ -3,28 +3,28 @@
 
 void UserVerifier::OpenDb(const string & newDb)
 {
-	dbMutex.lock();
-	if (db)
-		delete db;
-	db = new SQLiteDb(newDb);
-	dbMutex.unlock();
+	m_dbMutex.lock();
+	if (m_db)
+		delete m_db;
+	m_db = new SQLiteDb(newDb);
+	m_dbMutex.unlock();
 }
 
 void UserVerifier::AddRequest(const ClientInfo & info)
 {
-	queue.push(info);
+	m_queue.push(info);
 }
 
 ClientInfo UserVerifier::GetFulfilledRequest()
 {
-	if (finished.size() == 0)
+	if (m_finished.size() == 0)
 		return ClientInfo{};
-	ClientInfo info = std::move(finished.Top());
-	finished.pop();
+	ClientInfo info = std::move(m_finished.Top());
+	m_finished.pop();
 	return std::move(info);
 }
 
 bool UserVerifier::HasFulfilledRequest()
 {
-	return !finished.Empty();
+	return !m_finished.Empty();
 }

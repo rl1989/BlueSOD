@@ -21,43 +21,25 @@ using std::mutex;
 class UserVerifier
 {
 private:
-	TS_Stack<ClientInfo> queue;
-	TS_Stack<ClientInfo> finished;
-	SQLiteDb *db;
-	mutex dbMutex;
+	TS_Stack<ClientInfo> m_queue;
+	TS_Stack<ClientInfo> m_finished;
+	SQLiteDb *m_db;
+	mutex m_dbMutex;
+	bool m_isRunning;
+	mutex m_runningMutex;
 public:
-	UserVerifier(UserVerifier&& uv)
-		:db{uv.db},
-		dbMutex{}
-	{
-		for (int i = 0; i < uv.queue.size(); i++)
-		{
-			queue.push(uv.queue.top());
-			uv.queue.pop();
-		}
-		for (int i = 0; i < uv.finished.size(); i++)
-		{
-			finished.push(uv.finished.top());
-			uv.finished.pop();
-		}
-		uv.db = nullptr;
-	}
 	UserVerifier(const string& dbName)
-		:db{ new SQLiteDb(dbName) },
-		queue{},
-		finished{},
-		dbMutex{}
-	{}
-	UserVerifier()
-		: db{ nullptr },
-		queue{},
-		finished{},
-		dbMutex{}
+		:m_db{ new SQLiteDb(dbName) },
+		m_queue{},
+		m_finished{},
+		m_dbMutex{},
+		m_isRunning{false},
+		m_runningMutex{}
 	{}
 	~UserVerifier()
 	{
-		if (db)
-			delete db;
+		if (m_db)
+			delete m_db;
 	}
 
 	/*
@@ -78,6 +60,18 @@ public:
 	/*
 		Checks to see if GetFulfilledRequest() will return a valid ClientInfo object.
 	*/
-	bool HasFulfilledRequest();
+	inline bool HasFulfilledRequest();
+	inline bool IsRunning()
+	{
+		lock_guard<mutex> lck(m_runningMutex);
+
+		return m_isRunning;
+	}
+	inline bool SetRunningState(bool state)
+	{
+		lock_guard<mutex> lck(m_runningMutex);
+
+		m_isRunning = state;
+	}
 };
 
