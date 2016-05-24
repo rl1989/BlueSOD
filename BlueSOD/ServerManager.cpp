@@ -1,6 +1,6 @@
 #pragma once
 #include "ServerManager.h"
-#include "TS_Stack.h"
+#include "TS_Deque.h"
 #include <stdio.h>
 #include <time.h>
 #include <openssl/crypto.h>
@@ -11,7 +11,6 @@
 
 using std::string;
 using std::fstream;
-using std::stack;
 
 ServerManager::~ServerManager()
 {
@@ -75,28 +74,6 @@ bool ServerManager::Reset()
 	return true;
 }
 
-bool ServerManager::ProcessAConnection()
-{
-	if (!IsListening())
-	{
-		if (!OpenForConnections(GetPortNumber()))
-		{
-			string errorMsg = string();
-			errorMsg += time(nullptr);
-			errorMsg += " Could not open port ";
-			errorMsg += GetPortNumber();
-			errorMsg += " for listening on ServerManager.";
-			LogError(CONNECTION_ERROR_LOG, errorMsg);
-
-			return false;
-		}
-	}
-
-	m_userVerifier->AddRequest(AcceptIncomingConnection());
-
-	return true;
-}
-
 bool ServerManager::OpenForConnections(int port)
 {
 	//WSA must be initialized before creating sockets.
@@ -116,45 +93,51 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-Connection ServerManager::AcceptIncomingConnection()
+ConnectionStatus ServerManager::AcceptIncomingConnection(Connection* ci)
 {
-	//WSA must be initialized and the server must be in a running state to accept connections.
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
-		return Connection{};
+	{
+		ci = nullptr;
+		return ConnectionStatus::NOT_OK;
+	}
 
 	struct sockaddr_in addr;
 	int len = sizeof(addr);
-	Connection connection;
+	SOCKET socket = accept(m_listenerSocket, (sockaddr*)&addr, &len);
 
-	//Generate the connection details.
-	connection.socket = accept(m_listenerSocket, (struct sockaddr*)&addr, &len);
-	connection.address = addr.sin_addr.S_un.S_addr;
-	if (connection.socket == INVALID_SOCKET)
+	if (socket == INVALID_SOCKET)
 	{
-		string fileName = string(CONNECTION_ERROR_LOG);
-		string msg = string();
-		msg += time(nullptr);
-		msg += " Could not accept connection";
-		LogConnection(fileName, msg, addr.sin_addr.S_un.S_addr);
+		if (WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			ci = nullptr;
+			return ConnectionStatus::NO_CONNECTION_PRESENT;
+		}
 
-		return Connection{};
+		/* Log error. */
+		string fName = string(ERROR_LOGS_LOCATION);
+		fName += CONNECTION_ERROR_LOG;
+		LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
+		ci = nullptr;
+		return ConnectionStatus::NOT_OK;
 	}
-	
-	//Associate the accepted socket with a new ssl object.
-	if (m_sslContext != nullptr)
+
+	SSL* ssl = nullptr;
+	if (m_sslContext)
 	{
-		connection.ssl = SSL_new(m_sslContext);
-		SSL_set_fd(connection.ssl, connection.socket);
-		if (SSL_accept(connection.ssl) <= 0)
+		/* Create the SSL object and attempt to accept an SSL connection. */
+		ssl = SSL_new(m_sslContext);
+		SSL_set_fd(ssl, socket);
+		if (SSL_accept(ssl) <= 0)
 		{
 			LogSSLError();
-
-			SSL_free(connection.ssl);
-			connection.ssl = nullptr;
+			SSL_free(ssl);
+			ssl = nullptr;
 		}
 	}
 
-	return connection;
+	ci =  new Connection{ socket, ssl, addr.sin_addr.S_un.S_addr };
+
+	return ConnectionStatus::CONNECTION_ACCEPTED;
 }
 
 void ServerManager::StopAcceptingConnections()
@@ -199,15 +182,31 @@ bool ServerManager::Run(ServerState state)
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				ProcessAConnection();
+				Connection* ci = nullptr;
+				ConnectionStatus status = AcceptIncomingConnection(ci);
+				if (status != ConnectionStatus::ALL_OK)
+				{
+					if (status == ConnectionStatus::NO_CONNECTION_PRESENT)
+						break;
 
+					string fileName = string(ERROR_LOGS_LOCATION);
+					fileName += ERROR_LOG;
+					string message;
+					message += time(nullptr);
+					message += " Could not accept connection on port ";
+					message += GetPortNumber();
+					message += ".";
+					LogError(fileName, message);
+					break;
+				}
+				else
+				{
+					/* Send ConnectionInfo off to be verified. */
+					m_verify->AddPendingConnection(*ci);
+				}
+
+				delete[] ci;
 				break;
-		}
-
-		if (m_userVerifier->HasFulfilledRequest())
-		{
-			ClientInfo client = m_userVerifier->GetFulfilledRequest();
-			m_server->AddClient(client);
 		}
 
 		curState = GetState();
@@ -273,6 +272,14 @@ SOCKET ServerManager::CreateSocket(int port)
 		LogError(CONNECTION_ERROR_LOG, error);
 
 		return INVALID_SOCKET;
+	}
+
+	/* Make socket non blocking. */
+	{
+		u_long argp = 1;
+		long cmd = FIONBIO;
+
+		ioctlsocket(socket, cmd, &argp);
 	}
 
 	//Bind socket.
@@ -430,12 +437,12 @@ void ServerManager::LogError(const std::string& fileName, const std::string& err
 	}
 }
 
-void ServerManager::LogConnection(const std::string & fileName, const std::string & message, int ip)
+void ServerManager::LogConnection(const std::string& fileName, int time, int ip)
 {
 	fstream file = fstream(fileName, std::ios_base::in);
-	string fullMessage = string();
-	fullMessage += time(nullptr);
-	fullMessage += " " + message + " from IP: ";
+	string fullMessage;
+	fullMessage += time;
+	fullMessage += " Could not accept connection from IP address:";
 	fullMessage += ip;
 	
 	if (file.is_open())

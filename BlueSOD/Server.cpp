@@ -4,19 +4,9 @@
 //Sizes the vector with the anticipation that more connections will come.
 #define DEFAULT_VECTOR_SIZE 21
 
-Server::Server(const ClientInfo& client)
+void Server::AddClient(const Connection& client)
 {
-	//Add the client to the list.
-	m_clients = vector<ClientInfo>(DEFAULT_VECTOR_SIZE);
-	m_clients.push_back(client);
-}
-
-void Server::AddClient(const ClientInfo& client)
-{
-	//Add client to the list.
-	m_accessMutex.lock();
-	m_clients.push_back(client);
-	m_accessMutex.unlock();
+	
 }
 
 int Server::NumberOfClients()

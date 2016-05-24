@@ -1,15 +1,15 @@
 #pragma once
-#ifndef _WINSOCK2API_
 #include <WinSock2.h>
-#endif
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <iostream>
 #include <vector>
+#include <memory>
 #include "CommonServer.h"
 #include "ServerConcurrency.h"
 
 using std::vector;
+using std::unique_ptr;
 
 //This class represents the Server. The ServerManager will handle any initial incoming connections
 //and will pass it off to the Server, which lies in its own thread. The Server then will handle
@@ -20,7 +20,7 @@ class Server
 {
 private:
 	//List of clients currently connected.
-	vector<ClientInfo> m_clients;
+	vector<unique_ptr<ConnectionInfo>> m_clients;
 	//The state of the Server.
 	ServerState m_state;
 
@@ -29,11 +29,11 @@ private:
 
 public:
 	//Constructor takes in the unique information regarding the initial connecting client.
-	Server(const ClientInfo& connection);
 	~Server() {}
 
 	//Add a client to the server.
-	void AddClient(const ClientInfo& client);
+	void AddClient(const Connection& client);
+	
 	//Returns the number of clients currently connected.
 	int NumberOfClients();
 	//Initializes the server. This is where the code for handling communication will be.

@@ -1,7 +1,5 @@
 #pragma once
-#ifndef _WINSOCK2API_
 #include <WinSock2.h>
-#endif
 #include <memory>
 #include <openssl\ssl.h>
 
@@ -12,55 +10,20 @@ enum ServerState
 {
 	OFF, RUNNING, NOT_ACCEPTING_CONNECTIONS, RESET
 };
-/*
-Tells whether the user was authenticated or if a result is still pending.
-*/
-enum class UserAuthentication
+
+enum ConnectionStatus
 {
-	VALID, INVALID, PENDING
+	ALL_OK, CONNECTION_ACCEPTED, NOT_OK, NO_CONNECTION_PRESENT
 };
-//Holds information unique to the client.
-struct ClientInfo
+
+struct Buffer
 {
-	//Unique client connection information.
-	Connection connection;
-	//Required for WSA messages.
-	WSABUF wsaBuffer;
-	//These determine how much was sent/received.
-	DWORD bytesSend;
+	WSABUF buffer;
+	DWORD bytesSent;
 	DWORD bytesRecv;
 
-	ClientInfo(ClientInfo&& info)
-		: connection{ info.connection.socket, info.connection.ssl, info.connection.address, info.connection.authenticityStatus },
-		bytesRecv{ info.bytesRecv },
-		bytesSend{ info.bytesSend }
-	{
-		wsaBuffer.buf = info.wsaBuffer.buf;
-		wsaBuffer.len = info.wsaBuffer.len;
-		info.wsaBuffer.buf = nullptr;
-	}
-	ClientInfo(const ClientInfo& info) = default;
-	ClientInfo(Connection client)
-		: connection { client.socket, client.ssl, client.address, client.authenticityStatus },
-		bytesSend{},
-		bytesRecv{}
-	{
-		wsaBuffer.buf = new char[BUFFER_SIZE];
-		wsaBuffer.len = 0;
-		bytesRecv = bytesSend = 0;
-	}
-	ClientInfo()
-		: ClientInfo(Connection{}) {}
-
-	~ClientInfo()
-	{
-		if (connection.ssl != nullptr)
-			SSL_free(connection.ssl);
-		if (connection.socket != INVALID_SOCKET)
-			closesocket(connection.socket);
-		if (wsaBuffer.buf != nullptr)
-			delete[] wsaBuffer.buf;
-	}
+	Buffer();
+	~Buffer();
 };
 
 struct Connection
@@ -68,15 +31,28 @@ struct Connection
 	SOCKET socket;
 	SSL* ssl;
 	ULONG address;
-	UserAuthentication authenticityStatus;
 
-	Connection()
-		: Connection(INVALID_SOCKET, nullptr, ULONG{}, UserAuthentication::INVALID)
-	{}
-	Connection(SOCKET s, SSL* sslc, ULONG addr, UserAuthentication auth)
-		: socket{s},
-		ssl{sslc},
-		address{addr},
-		authenticityStatus{auth}
-	{}
+	bool operator==(const Connection& ref);
+	bool operator==(Connection& ref);
+};
+
+struct ConnectionInfo
+{
+	std::shared_ptr<Buffer> buffer;
+	Connection connection;
+	bool verified;
+
+	ConnectionInfo();
+	ConnectionInfo(const Connection& ref);
+	ConnectionInfo(Connection&& move);
+	ConnectionInfo& operator=(const Connection& ref);
+	ConnectionInfo& operator=(Connection&& move);
+	ConnectionInfo(const ConnectionInfo& ref);
+	ConnectionInfo(ConnectionInfo&& move);
+	ConnectionInfo& operator=(const ConnectionInfo& ref);
+	ConnectionInfo& operator=(ConnectionInfo&& move);
+	~ConnectionInfo()=default;
+
+	bool operator==(const ConnectionInfo& ref);
+	bool operator==(ConnectionInfo& ref);
 };
