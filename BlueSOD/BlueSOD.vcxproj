@@ -133,16 +133,18 @@
     <ClInclude Include="ServerManager.h" />
     <ClInclude Include="SQLiteDB.h" />
     <ClInclude Include="SSL_concurrency.h" />
-    <ClInclude Include="TS_Stack.h" />
+    <ClInclude Include="TS_Deque.h" />
     <ClInclude Include="UserVerifier.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\BlueSOD\sqlite3.c" />
+    <ClCompile Include="CommonServer.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="ServerManager.cpp" />
     <ClCompile Include="SQLiteDB.cpp" />
-    <ClCompile Include="TS_Stack.cpp" />
+    <ClCompile Include="SSLConnectionTest.cpp" />
+    <ClCompile Include="TS_Deque.cpp" />
     <ClCompile Include="UserVerifier.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
