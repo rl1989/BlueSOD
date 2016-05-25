@@ -4,7 +4,7 @@
 void UserVerifier::AddPendingConnection(const Connection& c)
 {
 	ConnectionInfo ci{ c };
-	m_pending.PushBack(ci);
+	m_pending.PushBack(std::move(ci));
 }
 
 ConnectionInfo& UserVerifier::GetVerifiedConnection()
@@ -37,11 +37,11 @@ void UserVerifier::Run(string dbName)
 		{
 			ConnectionInfo ci = GetPendingConnection();
 			/*
-				TO DO:
-				  1) Read from the connection.
-				  2) Validate the information sent.
-					a) Make sure it's a valid login message.
-					b) Validate the user information
+			TO DO:
+			1) Read from the connection.
+			2) Validate the information sent.
+			a) Make sure it's a valid login message.
+			b) Validate the user information
 			*/
 		}
 	}
@@ -61,7 +61,7 @@ bool UserVerifier::IsRunning()
 
 ConnectionInfo& UserVerifier::GetPendingConnection()
 {
-	ConnectionInfo ci = m_pending.Front();
+	ConnectionInfo ci = std::move(m_pending.Front());
 	m_pending.PopFront();
 	return std::move(ci);
 }
