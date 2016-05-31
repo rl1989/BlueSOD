@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-#include "CommonServer.h"
+#include "ServerConnections.h"
 #include "ServerConcurrency.h"
 
 using std::vector;
