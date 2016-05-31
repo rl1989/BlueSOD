@@ -1,33 +1,75 @@
 #pragma once
 #include "SQLiteDB.h"
 
-bool SQLiteDb::ExecuteStatement(string statement)
+using std::make_unique;
+using std::array;
+
+int SQLiteDb::ExecuteStatement(const string& statement)
 {
+	sqlite3_finalize(m_sqlStatement);
+
 	string cleanedStmt = CleanStatement(statement);
-	int res = sqlite3_prepare_v2(m_sqlObject, cleanedStmt.c_str(), cleanedStmt.size() + 1, &m_sqlStatement, nullptr);
+	int res = sqlite3_prepare_v2(m_sqlObject, cleanedStmt.c_str(), cleanedStmt.size(), &m_sqlStatement, nullptr);
+
 	if (res != SQLITE_OK)
+		return res;
+
+	switch (res = StepNextRow())
 	{
-		return false;
+		case SQLITE_ROW:
+			SetColumnCount(sqlite3_column_count(m_sqlStatement));
+			break;
+		default:
+			SetColumnCount(0);
+			return res;
 	}
 
-	res = sqlite3_step(m_sqlStatement);
-	switch (res)
-	{
-		case SQLITE_DONE:
-			m_hasRows = false;
-			sqlite3_reset(m_sqlStatement);
-			return true;
-		case SQLITE_ROW:
-			m_hasRows = true;
-			return true;
-		default:
-			return false;
-	}
+	CreateNewBuffers();
+	FillRowData();
+
+	return res;
+}
+
+const int* const SQLiteDb::GetColumnInt(int col)
+{
+	return m_intColBuffer[col];
+}
+
+const std::string* const SQLiteDb::GetColumnTxt(int col)
+{
+	return m_txtColBuffer[col];
+}
+
+const double* const SQLiteDb::GetColumnDouble(int col)
+{
+	return m_dblColBuffer[col];
+}
+
+int SQLiteDb::StepNextRow()
+{
+	int res = sqlite3_step(m_sqlStatement);
+	m_hasRows = res == SQLITE_ROW;
+	return res;
+}
+
+bool SQLiteDb::Open(const string& dbLoc)
+{
+	if (IsOpen())
+		CloseDb();
+
+	m_dbLoc = dbLoc;
+
+	return OpenDb();
+}
+
+int SQLiteDb::ColumnCount()
+{
+	return m_numberOfColumns;
 }
 
 bool SQLiteDb::OpenDb()
 {
-	int res = sqlite3_open_v2(m_dbLoc.c_str(), &m_sqlObject, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
+	int res = sqlite3_open_v2(m_dbLoc.c_str(), &m_sqlObject, SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
 	
 	return res == SQLITE_OK;
 }
@@ -38,7 +80,90 @@ void SQLiteDb::CloseDb()
 	sqlite3_close_v2(m_sqlObject);
 }
 
-string SQLiteDb::CleanStatement(string statement)
+string SQLiteDb::CleanStatement(const string& statement)
 {
-	return statement;
+	return std::move(statement);
 }
+
+void SQLiteDb::SetColumnCount(int c)
+{
+	m_numberOfColumns = c;
+}
+
+template<typename B>
+inline SQLiteDb::DeleteRowData(B** buffer)
+{
+	for (int i = 0; i < ColumnCount(); i++)
+	{
+		if (buffer[i] != nullptr)
+		{
+			delete buffer;
+			buffer[i] = nullptr;
+		}
+	}
+}
+
+template<typename B>
+SQLiteDb::DeleteBuffer(B** buffer)
+{
+	if (buffer != nullptr)
+		delete buffer;
+	buffer = nullptr;
+}
+
+void SQLiteDb::ClearRowData()
+{
+	DeleteRowData(m_intColBuffer);
+	DeleteRowData(m_dblColBuffer);
+	DeleteRowData(m_txtColBuffer);
+}
+
+void SQLiteDb::ClearBuffers()
+{
+	ClearRowData();
+	DeleteBuffer(m_intColBuffer);
+	DeleteBuffer(m_dblColBuffer);
+	DeleteBuffer(m_txtColBuffer);
+}
+
+void SQLiteDb::CreateNewBuffers()
+{
+	ClearBuffers();
+
+	int columns = ColumnCount();
+	m_intColBuffer = new int*[columns];
+	m_dblColBuffer = new double*[columns];
+	m_txtColBuffer = new string*[columns];
+	for (int i = 0; i < columns; i++)
+	{
+		m_intColBuffer[i] = nullptr;
+		m_dblColBuffer[i] = nullptr;
+		m_txtColBuffer[i] = nullptr;
+	}
+}
+
+void SQLiteDb::FillRowData()
+{
+	ClearRowData();
+
+	for (int i = 0; i < ColumnCount(); i++)
+	{
+		switch (sqlite3_column_type(m_sqlStatement, i))
+		{
+			case SQLITE_INTEGER:
+				m_intColBuffer[i] = new int;
+				*m_intColBuffer[i] = sqlite3_column_int(m_sqlStatement, i);
+				break;
+			case SQLITE_FLOAT:
+				m_dblColBuffer[i] = new double;
+				*m_dblColBuffer[i] = sqlite3_column_double(m_sqlStatement, i);
+				break;
+			case SQLITE_TEXT:
+				m_txtColBuffer[i] = new string{(const char*)sqlite3_column_text(m_sqlStatement, i)};
+				break;
+			default:
+				break;
+		}
+	}
+}
+

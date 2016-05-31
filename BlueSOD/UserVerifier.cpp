@@ -1,72 +1,184 @@
 #pragma once
 #include "UserVerifier.h"
 
-void UserVerifier::AddPendingConnection(const Connection& c)
+void UserVerifier::AddPendingConnection(const ConnectionInfo& ci)
 {
-	ConnectionInfo ci{ c };
-	m_pending.PushBack(std::move(ci));
+	m_pendingConnections.PushBack(ci);
 }
 
-ConnectionInfo& UserVerifier::GetVerifiedConnection()
+void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
-	ConnectionInfo info = std::move(m_verified.Front());
-	m_verified.PopFront();
-	return std::move(info);
+	m_pendingConnections.PushBack(ci);
 }
 
-void UserVerifier::Run(string dbName)
+bool UserVerifier::CheckForVerifiedConnections()
 {
-	/*Prevent the UserVerifier from running more than once.*/
-	if (IsRunning())
-		return;
-	else
-	{
-		lock_guard<mutex> lck(m_runningMutex);
-		m_running = true;
-	}
+	return m_verifiedConnections.Empty();
+}
 
-	/* Create a connection to a database dbName. */
-	{
-		lock_guard<mutex> lck(m_dbMutex);
-		m_db = std::make_unique<SQLiteDb>(SQLiteDb(dbName));
-	}
+int UserVerifier::NumVerifiedConnections()
+{
+	return m_verifiedConnections.Size();
+}
 
-	while (IsRunning())
+bool UserVerifier::CheckRejectedConnections()
+{
+	return !m_rejectedConnections.Empty();
+}
+
+int UserVerifier::NumRejectedConnections()
+{
+	return m_rejectedConnections.Size();
+}
+
+unique_ptr<ConnectionInfo> UserVerifier::PopRejectedConnection()
+{
+	unique_ptr<ConnectionInfo> ci{ nullptr };
+
+	if (m_rejectedConnections.Empty())
+		return ci;
+
+	ci = make_unique(m_rejectedConnections.Front());
+	m_rejectedConnections.PopFront();
+
+	return ci;
+}
+
+void UserVerifier::Run(ServerState state)
+{
+	SetState(state);
+
+	while (GetState() == ServerState::RUNNING)
 	{
-		if (!m_pending.Empty())
+		if (CheckForPendingConnections())
 		{
-			ConnectionInfo ci = GetPendingConnection();
-			/*
-			TO DO:
-			1) Read from the connection.
-			2) Validate the information sent.
-			a) Make sure it's a valid login message.
-			b) Validate the user information
-			*/
+			while (NumOfPendingConnections() > 0)
+			{
+				unique_ptr<ConnectionInfo> pending = PopPendingConnection();
+
+				ReadFromSSL(pending.get());
+
+				if (VerifyLoginAttempt(pending.get()))
+				{
+					if (VerifyLoginInformation(pending.get()))
+					{
+
+						AddVerifiedConnection(move(*pending));
+						continue;
+					}
+				}
+				else
+				{
+
+					AddRejectedConnection(move(*pending));
+				}
+			}
 		}
 	}
 }
 
-void UserVerifier::Stop()
+void UserVerifier::SetState(ServerState state)
 {
-	lock_guard<mutex> lck(m_runningMutex);
-	m_running = false;
+	m_state.ChangeObject(state);
 }
 
-bool UserVerifier::IsRunning()
+ServerState UserVerifier::GetState()
 {
-	lock_guard<mutex> lck(m_runningMutex);
-	return m_running;
+	return m_state.RetrieveObject();
 }
 
-ConnectionInfo& UserVerifier::GetPendingConnection()
+unique_ptr<ConnectionInfo> UserVerifier::PopVerifiedConnection()
 {
-	ConnectionInfo ci = std::move(m_pending.Front());
-	m_pending.PopFront();
-	return std::move(ci);
+	unique_ptr<ConnectionInfo> ci{ nullptr };
+	
+	if (m_verifiedConnections.Empty())
+		return ci;
+
+	ci = make_unique(m_verifiedConnections.Front());
+	m_verifiedConnections.PopFront();
+
+	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(const Connection& c)
+unique_ptr<ConnectionInfo> UserVerifier::PopPendingConnection()
 {
-	m_verified.PushBack(c);
+	unique_ptr<ConnectionInfo> ci{ nullptr };
+
+	if (m_pendingConnections.Empty())
+		return ci;
+
+	ci = make_unique(m_pendingConnections.Front());
+	m_pendingConnections.PopFront();
+
+	return ci;
+}
+
+void UserVerifier::AddVerifiedConnection(ConnectionInfo && ci)
+{
+	m_verifiedConnections.PushBack(ci);
+}
+
+bool UserVerifier::CheckForPendingConnections()
+{
+	return !m_pendingConnections.Empty();
+}
+
+int UserVerifier::NumOfPendingConnections()
+{
+	return m_pendingConnections.Size();
+}
+
+void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
+{
+	m_rejectedConnections.PushBack(ci);
+}
+
+bool UserVerifier::RequestingLogin(ConnectionInfo* ci, string* userName, string* password)
+{
+	return false;
+}
+
+bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
+{
+	string message{ ci->buffer->buffer.buf };
+	
+	if (message.substr(0, 1) == LOGIN_MSG)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void UserVerifier::RespondSuccessfulLogin(ConnectionInfo* ci)
+{
+	strcpy(ci->buffer->buffer.buf, SUCCESSFUL_LOGIN);
+	SendToSSL(ci);
+}
+
+void UserVerifier::RespondUnsuccesfulLogin(ConnectionInfo* ci)
+{
+	strcpy(ci->buffer->buffer.buf, UNSUCCESSFUL_LOGIN);
+	SendToSSL(ci);
+}
+
+bool UserVerifier::VerifyLoginInformation(ConnectionInfo * ci)
+{
+	string msg{ci->buffer->buffer.buf};
+	int delimiter = msg.find_first_of(DELIMITER, 1);
+	string sqlStatement{ "SELECT " };
+	sqlStatement += USERNAME_COL;
+	sqlStatement += ",";
+	sqlStatement += PASSWORD_COL;
+	sqlStatement += " FROM ";
+	sqlStatement += USER_INFO_DB;
+	sqlStatement += " WHERE ";
+	sqlStatement += USERNAME_COL;
+	sqlStatement += "=" + SQLiteDb::CleanStatement(msg.substr(1, delimiter));
+	sqlStatement += " AND ";
+	sqlStatement += PASSWORD_COL;
+	sqlStatement += "=" + SQLiteDb::CleanStatement(msg.substr(delimiter, msg.size()));
+	sqlStatement += ";";
+
+	return m_db.ExecuteStatement(sqlStatement) == SQLITE_ROW;
 }

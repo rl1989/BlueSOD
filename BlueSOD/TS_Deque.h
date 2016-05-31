@@ -24,10 +24,12 @@ public:
 	~TS_Deque() = default;
 
 	T& Back();
+	T&& MoveBack();
 	void PushBack(const T& e);
 	void PushBack(T&& e);
 	void PopBack();
 	T& Front();
+	T&& MoveFront();
 	void PushFront(const T& e);
 	void PushFront(T&& e);
 	void PopFront();
@@ -40,6 +42,14 @@ T& TS_Deque<T>::Back()
 {
 	lock_guard<mutex> lck(m_mutex);
 
+	return m_deque.back();
+}
+
+template<typename T>
+inline T&& TS_Deque<T>::MoveBack()
+{
+	lock_guard<mutex> lck(m_mutex);
+	
 	return m_deque.back();
 }
 
@@ -69,6 +79,14 @@ void TS_Deque<T>::PopBack()
 
 template<typename T>
 T& TS_Deque<T>::Front()
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	return m_deque.front();
+}
+
+template<typename T>
+inline T&& TS_Deque<T>::MoveFront()
 {
 	lock_guard<mutex> lck(m_mutex);
 

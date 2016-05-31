@@ -1,18 +1,15 @@
 #pragma once
-#include <WinSock2.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/bio.h>
-#include <openssl/crypto.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <string>
+#include <time.h>
 #include "Server.h"
 #include "ServerConcurrency.h"
-#include "CommonServer.h"
+#include "ServerConnections.h"
 #include "SSL_concurrency.h"
 #include "UserVerifier.h"
+#include "TS_Deque.h"
+#include "LogManager.h"
 
 extern void thread_cleanup();
 extern void thread_setup();
@@ -20,6 +17,7 @@ extern void win32_locking_callback(int, int, char*, int);
 
 using std::string;
 using std::unique_ptr;
+using std::shared_ptr;
 
 //The port the server will isten on.
 #define SERVER_PORT 2048
@@ -30,22 +28,8 @@ using std::unique_ptr;
 #define CERTIFICATE_FILE "ricky-anthony.asuscomm.com.cert.pem"
 #define PRIVATE_KEY_FILE "ricky-anthony.asuscomm.com.key.pem"
 #define PASSWORD_FILE "password.txt"
-//Locations of error files
-#define ERROR_LOGS_LOCATION "G:\\Ricky\\Documents\\Programming\\BlueSOD\\Error Logs\\"
-#define ERROR_LOG "ErrorLog.txt"
-#define SSL_ERROR_LOG "SSLServerErrorLog.txt"
-#define CONNECTION_ERROR_LOG "ConnectionErrorLog.txt"
 //Location of user DB
 #define USER_DB "G:\\Ricky\\Documents\\Programming\\BlueSOD\\Databases\\UserInfo.db"
-
-//Will be used to start the server. The function is passed off to std::thread with the server as an argument.
-void StartServer(std::shared_ptr<Server> server);
-
-/*
-	Tells whether a connection was accepted or if a connection is still waiting.
-*/
-enum class SocketStatus
-{ ACCEPTED, LISTENING };
 
 /*
 	The ServerManager will manage initial connections. That is, when it receives a connection request from
@@ -56,9 +40,6 @@ enum class SocketStatus
 	Ideally, it will be hosted on its own machine and then it will communicate with the Server on a different
 	machine.
 */
-
-//TO DO: Throw error from Run() if WSA is not initialized?
-//TO DO: Change any FILE uses to fstream.
 class ServerManager
 {
 private:
@@ -91,7 +72,6 @@ private:
 	/*
 		Verifies user login information on a separate thread.
 	*/
-	unique_ptr<UserVerifier> m_verify;
 
 public:
 	//The default constructor.
@@ -111,8 +91,7 @@ public:
 		m_stateMutex{},
 		m_serverManagerMutex{},
 		m_portMutex{},
-		m_runMutex{},
-		m_verify{}
+		m_runMutex{}
 	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
@@ -172,7 +151,7 @@ private:
 			NOT_OK - An error occurred and ci is not valid.
 			NO_CONNECTION_PRESENT - There was no connection present.
 	*/
-	ConnectionStatus AcceptIncomingConnection(Connection* ci);
+	unique_ptr<ConnectionInfo> AcceptIncomingConnection();
 
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).
@@ -216,32 +195,6 @@ private:
 		Close any connections.
 	*/
 	void CloseConnections();
-	//Log the OpenSSL error into the SSL Error logfile.
-	void LogSSLError();
-	//Log any non-OpenSSL errorMessage into fileName.
-	//Arguments:
-	//  const std::string& fileName - The location of the file to write errorMessage.
-	//  const std::string& errorMessage - The error.
-	void LogError(const std::string& fileName, const std::string& errorMessage);
-	/*
-		Log connections into fileName.
-		Arguments:
-		  const std::string& fileName - The location of the file to write message.
-		  const std::string& message - The message sent by ip.
-		  int ip - The ip address that sent the message.
-	*/
-	void LogConnection(const std::string& fileName, int time, int ip);
-	/*
-		Log login attempts (whether they are successful or not) into fileName.
-		Arguments:
-		  const std::string& fileName - The location of the file to write the message.
-		  const std::string& user - The user who attempted login.
-		  bool successful - Was the attempt successful?
-	*/
-	void LogLoginAttemp(const std::string& fileName, const std::string& user, bool successful, int ip);
-
-	//A callback function used in the OpenSSL library. May be replaced with a lambda 
-	//function in the future.
-	static int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);
 };
 
+int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);

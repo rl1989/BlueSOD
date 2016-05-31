@@ -1,9 +1,5 @@
 #pragma once
 #include "ServerManager.h"
-#include "TS_Deque.h"
-#include <stdio.h>
-#include <time.h>
-#include <openssl/crypto.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "libeay32.lib")
@@ -28,7 +24,7 @@ bool ServerManager::Init()
 			string error = string();
 			error += time(nullptr);
 			error += " WSA is not initialized.";
-			LogError(CONNECTION_ERROR_LOG, error);
+			LogManager::LogError(CONNECTION_ERROR_LOG, error);
 			return false;
 		}
 	}
@@ -41,7 +37,7 @@ bool ServerManager::Init()
 			string error = string();
 			error += time(nullptr);
 			error += " OpenSSL is not initialized.";
-			LogError(CONNECTION_ERROR_LOG, error);
+			LogManager::LogError(CONNECTION_ERROR_LOG, error);
 		}
 	}
 	
@@ -67,7 +63,7 @@ bool ServerManager::Reset()
 		errorMsg += " Could not open port ";
 		errorMsg += GetPortNumber();
 		errorMsg += " for listening on ServerManager.";
-		LogError(CONNECTION_ERROR_LOG, errorMsg);
+		LogManager::LogError(CONNECTION_ERROR_LOG, errorMsg);
 
 		return false;
 	}
@@ -93,12 +89,14 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-ConnectionStatus ServerManager::AcceptIncomingConnection(Connection* ci)
+unique_ptr<ConnectionInfo> ServerManager::AcceptIncomingConnection()
 {
+	unique_ptr<ConnectionInfo> ci = unique_ptr<ConnectionInfo>(new ConnectionInfo());
+
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
 	{
-		ci = nullptr;
-		return ConnectionStatus::NOT_OK;
+		ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		return ci;
 	}
 
 	struct sockaddr_in addr;
@@ -109,16 +107,17 @@ ConnectionStatus ServerManager::AcceptIncomingConnection(Connection* ci)
 	{
 		if (WSAGetLastError() == WSAEWOULDBLOCK)
 		{
-			ci = nullptr;
-			return ConnectionStatus::NO_CONNECTION_PRESENT;
+			ci->connStatus = ConnectionStatus::NO_DATA_PRESENT;
+			return ci;
 		}
 
 		/* Log error. */
 		string fName = string(ERROR_LOGS_LOCATION);
 		fName += CONNECTION_ERROR_LOG;
-		LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
-		ci = nullptr;
-		return ConnectionStatus::NOT_OK;
+		LogManager::LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
+
+		ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		return ci;
 	}
 
 	SSL* ssl = nullptr;
@@ -129,15 +128,18 @@ ConnectionStatus ServerManager::AcceptIncomingConnection(Connection* ci)
 		SSL_set_fd(ssl, socket);
 		if (SSL_accept(ssl) <= 0)
 		{
-			LogSSLError();
+			LogManager::LogSSLError();
 			SSL_free(ssl);
 			ssl = nullptr;
 		}
 	}
 
-	ci =  new Connection{ socket, ssl, addr.sin_addr.S_un.S_addr };
+	ci->connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
+	ci->connection.socket = socket;
+	ci->connection.address = addr.sin_addr.S_un.S_addr;
+	ci->connection.ssl = ssl;
 
-	return ConnectionStatus::CONNECTION_ACCEPTED;
+	return ci;
 }
 
 void ServerManager::StopAcceptingConnections()
@@ -182,12 +184,14 @@ bool ServerManager::Run(ServerState state)
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				Connection* ci = nullptr;
-				ConnectionStatus status = AcceptIncomingConnection(ci);
-				if (status != ConnectionStatus::ALL_OK)
+				unique_ptr<ConnectionInfo> ci = AcceptIncomingConnection();
+				ConnectionStatus connStatus = ci->connStatus;
+				if (connStatus != ConnectionStatus::CONNECTION_OK)
 				{
-					if (status == ConnectionStatus::NO_CONNECTION_PRESENT)
+					if (connStatus == ConnectionStatus::NO_DATA_PRESENT)
+					{
 						break;
+					}
 
 					string fileName = string(ERROR_LOGS_LOCATION);
 					fileName += ERROR_LOG;
@@ -196,16 +200,14 @@ bool ServerManager::Run(ServerState state)
 					message += " Could not accept connection on port ";
 					message += GetPortNumber();
 					message += ".";
-					LogError(fileName, message);
+					LogManager::LogError(fileName, message);
+
 					break;
 				}
 				else
 				{
-					/* Send ConnectionInfo off to be verified. */
-					m_verify->AddPendingConnection(*ci);
+					/* Send Connection off to be verified. */
 				}
-
-				delete[] ci;
 				break;
 		}
 
@@ -269,7 +271,7 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not create the listening socket for ServerManager.";
-		LogError(CONNECTION_ERROR_LOG, error);
+		LogManager::LogError(CONNECTION_ERROR_LOG, error);
 
 		return INVALID_SOCKET;
 	}
@@ -288,7 +290,7 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not bind socket " + static_cast<int>(socket);
-		LogError(CONNECTION_ERROR_LOG, error);
+		LogManager::LogError(CONNECTION_ERROR_LOG, error);
 
 		closesocket(socket);
 		return INVALID_SOCKET;
@@ -300,7 +302,7 @@ SOCKET ServerManager::CreateSocket(int port)
 		string error = string();
 		error += time(nullptr);
 		error += " Could not listen on socket " + static_cast<int>(socket);
-		LogError(CONNECTION_ERROR_LOG, error);
+		LogManager::LogError(CONNECTION_ERROR_LOG, error);
 
 		closesocket(socket);
 		return INVALID_SOCKET;
@@ -317,7 +319,7 @@ SSL_CTX* ServerManager::CreateSSLContext()
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx)
 	{
-		LogSSLError();
+		LogManager::LogSSLError();
 		return nullptr;
 	}
 
@@ -338,7 +340,7 @@ bool ServerManager::ConfigureSSLContext(SSL_CTX *ctx)
 	//Tell OpenSSL where to find our certificate.
 	if (SSL_CTX_use_certificate_file(ctx, cPath.c_str(), SSL_FILETYPE_PEM) < 0)
 	{
-		LogSSLError();
+		LogManager::LogSSLError();
 
 		return false;
 	}
@@ -347,7 +349,7 @@ bool ServerManager::ConfigureSSLContext(SSL_CTX *ctx)
 	//Tell OpenSSL where to find our private key.
 	if (SSL_CTX_use_PrivateKey_file(ctx, pkPath.c_str(), SSL_FILETYPE_PEM) < 0)
 	{
-		LogSSLError();
+		LogManager::LogSSLError();
 
 		return false;
 	}
@@ -368,7 +370,7 @@ bool ServerManager::InitOpenSSL()
 	m_sslContext = SSL_CTX_new(SSLv23_server_method());
 	if (m_sslContext == nullptr)
 	{
-		LogSSLError();
+		LogManager::LogSSLError();
 		return m_bOpenSSL = false;
 	}
 	//Configure the SSL context.
@@ -396,7 +398,7 @@ bool ServerManager::InitWSA()
 		error += time(nullptr);
 		error += " WSAStartup failed with error: ";
 		error += result;
-		LogError(CONNECTION_ERROR_LOG, error);
+		LogManager::LogError(CONNECTION_ERROR_LOG, error);
 		CleanupWSA();
 		return m_bWSA = false;
 	}
@@ -415,58 +417,7 @@ void ServerManager::CloseConnections()
 		closesocket(m_listenerSocket);
 }
 
-void ServerManager::LogSSLError()
-{
-	string fName = string(ERROR_LOGS_LOCATION);
-	fName += SSL_ERROR_LOG;
-	FILE* err = fopen(fName.c_str(), "w");
-	//Log the OpenSSL error.
-	ERR_print_errors_fp(err);
-	fclose(err);
-}
-
-void ServerManager::LogError(const std::string& fileName, const std::string& errorMessage)
-{
-	fstream file = fstream(fileName, std::ios_base::in);
-	FILE* err = fopen(fileName.c_str(), "w");
-	//Log the error. Might be best to change this to C++ style to avoid any future issues.
-	if (file.is_open())
-	{
-		file << errorMessage.c_str() << std::endl;
-		file.close();
-	}
-}
-
-void ServerManager::LogConnection(const std::string& fileName, int time, int ip)
-{
-	fstream file = fstream(fileName, std::ios_base::in);
-	string fullMessage;
-	fullMessage += time;
-	fullMessage += " Could not accept connection from IP address:";
-	fullMessage += ip;
-	
-	if (file.is_open())
-	{
-		file << fullMessage.c_str() << std::endl;
-		file.close();
-	}
-}
-
-void ServerManager::LogLoginAttemp(const std::string & fileName, const std::string & user, bool successful, int ip)
-{
-	fstream file = fstream(fileName, std::ios_base::in);
-	string message = string(successful ? "Successful " : "Unsuccessful ");
-	message += " login attemp by " + user + " from IP: ";
-	message += ip;
-
-	if (file.is_open())
-	{
-		file << message.c_str() << std::endl;
-		file.close();
-	}
-}
-
-int ServerManager::PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)
+int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)
 {
 	FILE* file;
 	//Load the name of the password file.
@@ -477,13 +428,8 @@ int ServerManager::PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, 
 	//Get the password.
 	fgets(buffer, sizeOfBuffer - 2, file);
 	buffer[sizeOfBuffer - 1] = '\0';
-	
+
 	fclose(file);
 
 	return static_cast<int>(strlen(buffer));
-}
-
-void StartServer(std::shared_ptr<Server> server)
-{
-	server->Run();
 }
