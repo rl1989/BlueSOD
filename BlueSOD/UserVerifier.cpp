@@ -62,15 +62,16 @@ void UserVerifier::Run(ServerState state)
 				{
 					if (VerifyLoginInformation(pending.get()))
 					{
-
 						AddVerifiedConnection(move(*pending));
-						continue;
+					}
+					else
+					{
+						AddRejectedConnection(move(*pending));
 					}
 				}
 				else
 				{
-
-					AddRejectedConnection(move(*pending));
+					AddInvalidRequest(move(*pending));
 				}
 			}
 		}
@@ -131,6 +132,11 @@ int UserVerifier::NumOfPendingConnections()
 void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
 {
 	m_rejectedConnections.PushBack(ci);
+}
+
+void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
+{
+	m_invalidRequests.PushBack(ci);
 }
 
 bool UserVerifier::RequestingLogin(ConnectionInfo* ci, string* userName, string* password)

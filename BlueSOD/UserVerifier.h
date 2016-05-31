@@ -23,6 +23,7 @@ private:
 	TS_Deque<ConnectionInfo> m_pendingConnections;
 	TS_Deque<ConnectionInfo> m_verifiedConnections;
 	TS_Deque<ConnectionInfo> m_rejectedConnections;
+	TS_Deque<ConnectionInfo> m_invalidRequests;
 	ThreadSafe<ServerState> m_state;
 	SQLiteDb m_db;
 public:
@@ -50,6 +51,7 @@ private:
 	bool CheckForPendingConnections();
 	int NumOfPendingConnections();
 	void AddRejectedConnection(ConnectionInfo&& ci);
+	void AddInvalidRequest(ConnectionInfo&& ci);
 	bool RequestingLogin(ConnectionInfo* ci, string* userName, string* password);
 	bool VerifyLoginAttempt(ConnectionInfo* ci);
 	void RespondSuccessfulLogin(ConnectionInfo* ci);
