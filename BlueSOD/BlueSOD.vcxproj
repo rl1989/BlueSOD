@@ -127,7 +127,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\BlueSOD\sqlite3.h" />
-    <ClInclude Include="CommonServer.h" />
+    <ClInclude Include="LogManager.h" />
+    <ClInclude Include="ServerConnections.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="ServerConcurrency.h" />
     <ClInclude Include="ServerManager.h" />
@@ -138,7 +139,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\BlueSOD\sqlite3.c" />
-    <ClCompile Include="CommonServer.cpp" />
+    <ClCompile Include="LogManager.cpp" />
+    <ClCompile Include="ServerConnections.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="ServerManager.cpp" />
