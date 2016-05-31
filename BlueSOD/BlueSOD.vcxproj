@@ -140,6 +140,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\BlueSOD\sqlite3.c" />
     <ClCompile Include="LogManager.cpp" />
+    <ClCompile Include="ServerConcurrency.cpp" />
     <ClCompile Include="ServerConnections.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="ServerMain.cpp" />
