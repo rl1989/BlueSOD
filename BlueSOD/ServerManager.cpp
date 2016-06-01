@@ -89,13 +89,13 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-unique_ptr<ConnectionInfo> ServerManager::AcceptIncomingConnection()
+ConnectionInfo ServerManager::AcceptIncomingConnection()
 {
-	unique_ptr<ConnectionInfo> ci = unique_ptr<ConnectionInfo>(new ConnectionInfo());
+	ConnectionInfo ci{};
 
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
 	{
-		ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		ci.connStatus = ConnectionStatus::CONNECTION_ERROR;
 		return ci;
 	}
 
@@ -107,7 +107,7 @@ unique_ptr<ConnectionInfo> ServerManager::AcceptIncomingConnection()
 	{
 		if (WSAGetLastError() == WSAEWOULDBLOCK)
 		{
-			ci->connStatus = ConnectionStatus::NO_DATA_PRESENT;
+			ci.connStatus = ConnectionStatus::NO_DATA_PRESENT;
 			return ci;
 		}
 
@@ -116,7 +116,7 @@ unique_ptr<ConnectionInfo> ServerManager::AcceptIncomingConnection()
 		fName += CONNECTION_ERROR_LOG;
 		LogManager::LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
 
-		ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		ci.connStatus = ConnectionStatus::CONNECTION_ERROR;
 		return ci;
 	}
 
@@ -134,10 +134,10 @@ unique_ptr<ConnectionInfo> ServerManager::AcceptIncomingConnection()
 		}
 	}
 
-	ci->connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
-	ci->connection.socket = socket;
-	ci->connection.address = addr.sin_addr.S_un.S_addr;
-	ci->connection.ssl = ssl;
+	ci.connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
+	ci.connection.socket = socket;
+	ci.connection.address = addr.sin_addr.S_un.S_addr;
+	ci.connection.ssl = ssl;
 
 	return ci;
 }
@@ -184,8 +184,8 @@ bool ServerManager::Run(ServerState state)
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				unique_ptr<ConnectionInfo> ci = AcceptIncomingConnection();
-				ConnectionStatus connStatus = ci->connStatus;
+				ConnectionInfo ci = std::move(AcceptIncomingConnection());
+				ConnectionStatus connStatus = ci.connStatus;
 				if (connStatus != ConnectionStatus::CONNECTION_OK)
 				{
 					if (connStatus == ConnectionStatus::NO_DATA_PRESENT)
