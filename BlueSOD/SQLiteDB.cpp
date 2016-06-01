@@ -1,6 +1,15 @@
 #pragma once
-#include "SQLiteDB.h"
 
+#define DEBUG
+
+#include "SQLiteDB.h"
+#ifdef DEBUG
+#include <iostream>
+
+
+using std::cout;
+using std::endl;
+#endif
 using std::make_unique;
 using std::array;
 
@@ -30,19 +39,19 @@ int SQLiteDb::ExecuteStatement(const string& statement)
 	return res;
 }
 
-const int* const SQLiteDb::GetColumnInt(int col)
+int SQLiteDb::GetColumnInt(int col)
 {
-	return m_intColBuffer[col];
+	return *m_intColBuffer[col];
 }
 
-const std::string* const SQLiteDb::GetColumnTxt(int col)
+string& SQLiteDb::GetColumnTxt(int col)
 {
-	return m_txtColBuffer[col];
+	return *m_txtColBuffer[col];
 }
 
-const double* const SQLiteDb::GetColumnDouble(int col)
+double SQLiteDb::GetColumnDouble(int col)
 {
-	return m_dblColBuffer[col];
+	return *m_dblColBuffer[col];
 }
 
 int SQLiteDb::StepNextRow()
@@ -91,20 +100,22 @@ void SQLiteDb::SetColumnCount(int c)
 }
 
 template<typename B>
-inline SQLiteDb::DeleteRowData(B** buffer)
+void SQLiteDb::DeleteRowData(B** buffer)
 {
+	if (buffer == nullptr)
+		return;
 	for (int i = 0; i < ColumnCount(); i++)
 	{
 		if (buffer[i] != nullptr)
 		{
-			delete buffer;
+			delete buffer[i];
 			buffer[i] = nullptr;
 		}
 	}
 }
 
 template<typename B>
-SQLiteDb::DeleteBuffer(B** buffer)
+void SQLiteDb::DeleteBuffer(B** buffer)
 {
 	if (buffer != nullptr)
 		delete buffer;
@@ -131,15 +142,9 @@ void SQLiteDb::CreateNewBuffers()
 	ClearBuffers();
 
 	int columns = ColumnCount();
-	m_intColBuffer = new int*[columns];
-	m_dblColBuffer = new double*[columns];
-	m_txtColBuffer = new string*[columns];
-	for (int i = 0; i < columns; i++)
-	{
-		m_intColBuffer[i] = nullptr;
-		m_dblColBuffer[i] = nullptr;
-		m_txtColBuffer[i] = nullptr;
-	}
+	m_intColBuffer = new int*[columns] {nullptr};
+	m_dblColBuffer = new double*[columns] {nullptr};
+	m_txtColBuffer = new string*[columns] {nullptr};
 }
 
 void SQLiteDb::FillRowData()

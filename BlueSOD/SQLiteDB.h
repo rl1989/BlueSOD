@@ -44,7 +44,7 @@ public:
 		m_sqlStatement{ nullptr },
 		m_hasRows{ false }
 #ifndef UNIQUE_PTR_DEBUG
-		, m_intColBuffer{}, m_dblColBuffer{}, m_txtColBuffer{}, m_numberOfColumns{ 0 }
+		, m_intColBuffer{nullptr}, m_dblColBuffer{nullptr}, m_txtColBuffer{nullptr}, m_numberOfColumns{ 0 }
 #else
 
 #endif
@@ -60,9 +60,9 @@ public:
 	bool IsOpen() { return m_sqlObject != nullptr; }
 	int ExecuteStatement(const std::string& statement);
 	inline bool HasRows() { return m_hasRows; }
-	const int* const GetColumnInt(int col);
-	const std::string* const GetColumnTxt(int col);
-	const double* const GetColumnDouble(int col);
+	int GetColumnInt(int col);
+	std::string& GetColumnTxt(int col);
+	double GetColumnDouble(int col);
 	inline int StepNextRow();
 	const char* GetLastErrMsg() { return sqlite3_errmsg(m_sqlObject); }
 	int GetLastErrCode() { return sqlite3_errcode(m_sqlObject); }
@@ -81,9 +81,9 @@ private:
 
 	void SetColumnCount(int c);
 	template<typename B>
-	DeleteRowData(B** buffer);
+	inline void DeleteRowData(B** buffer);
 	template<typename B>
-	DeleteBuffer(B** buffer);
+	inline void DeleteBuffer(B** buffer);
 	void ClearRowData();
 	void ClearBuffers();
 	void CreateNewBuffers();
