@@ -5,10 +5,6 @@
 #include <memory>
 #include "LogManager.h"
 
-using std::shared_ptr;
-using std::unique_ptr;
-using std::move;
-
 //The maximum size of a message a client can send.
 #define BUFFER_SIZE 1024
 //Defines the state of the server. Names are self explanatory.
@@ -57,7 +53,7 @@ struct Connection
 
 struct ConnectionInfo
 {
-	shared_ptr<Buffer> buffer;
+	Buffer buffer;
 	Connection connection;
 	bool verified;
 	ConnectionStatus connStatus;

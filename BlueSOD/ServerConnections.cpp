@@ -1,4 +1,5 @@
 #include "ServerConnections.h"
+using std::move;
 
 Buffer::Buffer()
 	:bytesSent{},
@@ -39,8 +40,6 @@ Buffer::Buffer(Buffer&& move)
 	
 	move.buffer.buf = nullptr;
 	move.buffer.len = 0;
-	move.bytesRecv = 0;
-	move.bytesSent = 0;
 }
 
 Buffer& Buffer::operator=(Buffer&& move)
@@ -53,8 +52,6 @@ Buffer& Buffer::operator=(Buffer&& move)
 	buffer.buf = move.buffer.buf;
 	buffer.len = move.buffer.len;
 
-	move.bytesRecv = 0;
-	move.bytesSent = 0;
 	move.buffer.len = 0;
 	move.buffer.buf = nullptr;
 
@@ -68,7 +65,7 @@ Buffer::~Buffer()
 }
 
 ConnectionInfo::ConnectionInfo()
-	: buffer{ new Buffer{} },
+	: buffer{},
 	connection{},
 	verified{false},
 	connStatus{ ConnectionStatus::CONNECTION_ERROR }
@@ -76,12 +73,12 @@ ConnectionInfo::ConnectionInfo()
 
 ConnectionInfo::ConnectionInfo(const Connection& ref)
 	: connection{ref.socket, ref.ssl, ref.address},
-	buffer{ new Buffer{} },
+	buffer{},
 	verified{false}
 {}
 
 ConnectionInfo::ConnectionInfo(Connection&& move)
-	: buffer{new Buffer{}},
+	: buffer{},
 	connection{ move.socket, move.ssl, move.address },
 	verified{false}
 {
@@ -128,7 +125,6 @@ ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
 	move.connection.socket = INVALID_SOCKET;
 	move.connection.ssl = nullptr;
 	move.connection.address = 0;
-	move.buffer = nullptr;
 	move.connStatus = ConnectionStatus::CONNECTION_NOT_INITIATED;
 }
 
@@ -164,8 +160,8 @@ ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 
 bool ConnectionInfo::operator==(const ConnectionInfo & ref)
 {
-	return (connection == ref.connection && buffer->buffer.buf == ref.buffer->buffer.buf
-		&& buffer->buffer.len == ref.buffer->buffer.len && verified == ref.verified 
+	return (connection == ref.connection && buffer.buffer.buf == ref.buffer.buffer.buf
+		&& buffer.buffer.len == ref.buffer.buffer.len && verified == ref.verified 
 		&& connStatus == ref.connStatus);
 }
 
@@ -183,7 +179,7 @@ ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length)
 		return ci;
 	}
 
-	char* buffer = ci->buffer->buffer.buf;
+	char* buffer = ci->buffer.buffer.buf;
 	int res = SSL_read(ssl, buffer, length);
 	if (res <= 0)
 	{
@@ -191,7 +187,7 @@ ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length)
 		ci->connStatus = ConnectionStatus::SSL_ERROR;
 		return ci;
 	}
-	ci->buffer->bytesRecv = res;
+	ci->buffer.bytesRecv = res;
 	ci->connStatus = ConnectionStatus::SSL_READ;
 
 	return ci;
@@ -206,7 +202,7 @@ ConnectionInfo* SendToSSL(ConnectionInfo* ci, int length)
 		return ci;
 	}
 
-	char* buffer = ci->buffer->buffer.buf;
+	char* buffer = ci->buffer.buffer.buf;
 	int res = SSL_write(ssl, buffer, length);
 	if (res <= 0)
 	{
