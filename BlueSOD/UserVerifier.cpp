@@ -1,8 +1,8 @@
 #pragma once
 #include "UserVerifier.h"
 
-using std::make_unique;
 using std::move;
+using std::string;
 
 void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
@@ -113,7 +113,7 @@ void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
 	m_invalidRequests.PushBack(move(ci));
 }
 
-bool UserVerifier::RequestingLogin(ConnectionInfo* ci, string* userName, string* password)
+bool UserVerifier::RequestingLogin(ConnectionInfo* ci, const string& userName, const string& password)
 {
 	return false;
 }

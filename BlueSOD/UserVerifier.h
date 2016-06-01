@@ -14,9 +14,6 @@
 #define LOGIN_BEGIN 1
 #define DELIMITER ";"
 
-using std::unique_ptr;
-using std::mutex;
-
 class UserVerifier
 {
 private:
@@ -27,6 +24,10 @@ private:
 	ThreadSafe<ServerState> m_state;
 	SQLiteDb m_db;
 public:
+	UserVerifier(const std::string& userInfoDbLocation, ServerState state = ServerState::OFF)
+		: m_state{ state },
+		m_db{ userInfoDbLocation }
+	{}
 	void AddPendingConnection(ConnectionInfo&& ci);
 	bool CheckForVerifiedConnections();
 	int NumVerifiedConnections();
@@ -45,7 +46,7 @@ private:
 	int NumOfPendingConnections();
 	void AddRejectedConnection(ConnectionInfo&& ci);
 	void AddInvalidRequest(ConnectionInfo&& ci);
-	bool RequestingLogin(ConnectionInfo* ci, string* userName, string* password);
+	bool RequestingLogin(ConnectionInfo* ci, const std::string& userName, const std::string& password);
 	bool VerifyLoginAttempt(ConnectionInfo* ci);
 	void RespondSuccessfulLogin(ConnectionInfo* ci);
 	void RespondUnsuccesfulLogin(ConnectionInfo* ci);
