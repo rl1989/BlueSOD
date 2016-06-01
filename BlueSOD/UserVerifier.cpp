@@ -1,14 +1,12 @@
 #pragma once
 #include "UserVerifier.h"
 
-void UserVerifier::AddPendingConnection(const ConnectionInfo& ci)
-{
-	m_pendingConnections.PushBack(ci);
-}
+using std::make_unique;
+using std::move;
 
 void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
-	m_pendingConnections.PushBack(ci);
+	m_pendingConnections.PushBack(move(ci));
 }
 
 bool UserVerifier::CheckForVerifiedConnections()
@@ -31,14 +29,11 @@ int UserVerifier::NumRejectedConnections()
 	return m_rejectedConnections.Size();
 }
 
-unique_ptr<ConnectionInfo> UserVerifier::PopRejectedConnection()
+ConnectionInfo UserVerifier::PopRejectedConnection()
 {
-	unique_ptr<ConnectionInfo> ci{ nullptr };
+	ConnectionInfo ci{};
 
-	if (m_rejectedConnections.Empty())
-		return ci;
-
-	ci = make_unique(m_rejectedConnections.Front());
+	ci = move(m_rejectedConnections.Front());
 	m_rejectedConnections.PopFront();
 
 	return ci;
@@ -54,25 +49,7 @@ void UserVerifier::Run(ServerState state)
 		{
 			while (NumOfPendingConnections() > 0)
 			{
-				unique_ptr<ConnectionInfo> pending = PopPendingConnection();
-
-				ReadFromSSL(pending.get());
-
-				if (VerifyLoginAttempt(pending.get()))
-				{
-					if (VerifyLoginInformation(pending.get()))
-					{
-						AddVerifiedConnection(move(*pending));
-					}
-					else
-					{
-						AddRejectedConnection(move(*pending));
-					}
-				}
-				else
-				{
-					AddInvalidRequest(move(*pending));
-				}
+				
 			}
 		}
 	}
@@ -88,35 +65,32 @@ ServerState UserVerifier::GetState()
 	return m_state.RetrieveObject();
 }
 
-unique_ptr<ConnectionInfo> UserVerifier::PopVerifiedConnection()
+ConnectionInfo UserVerifier::PopVerifiedConnection()
 {
-	unique_ptr<ConnectionInfo> ci{ nullptr };
-	
-	if (m_verifiedConnections.Empty())
-		return ci;
+	ConnectionInfo ci{};
 
-	ci = make_unique(m_verifiedConnections.Front());
+	ci = move(m_verifiedConnections.Front());
 	m_verifiedConnections.PopFront();
 
 	return ci;
 }
 
-unique_ptr<ConnectionInfo> UserVerifier::PopPendingConnection()
+ConnectionInfo UserVerifier::PopPendingConnection()
 {
-	unique_ptr<ConnectionInfo> ci{ nullptr };
+	ConnectionInfo ci{};
 
 	if (m_pendingConnections.Empty())
-		return ci;
+		return move(ci);
 
-	ci = make_unique(m_pendingConnections.Front());
+	ci = move(m_pendingConnections.Front());
 	m_pendingConnections.PopFront();
 
 	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(ConnectionInfo && ci)
+void UserVerifier::AddVerifiedConnection(ConnectionInfo&& ci)
 {
-	m_verifiedConnections.PushBack(ci);
+	m_verifiedConnections.PushBack(move(ci));
 }
 
 bool UserVerifier::CheckForPendingConnections()
@@ -131,12 +105,12 @@ int UserVerifier::NumOfPendingConnections()
 
 void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
 {
-	m_rejectedConnections.PushBack(ci);
+	m_rejectedConnections.PushBack(move(ci));
 }
 
 void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
 {
-	m_invalidRequests.PushBack(ci);
+	m_invalidRequests.PushBack(move(ci));
 }
 
 bool UserVerifier::RequestingLogin(ConnectionInfo* ci, string* userName, string* password)
@@ -146,7 +120,7 @@ bool UserVerifier::RequestingLogin(ConnectionInfo* ci, string* userName, string*
 
 bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
 {
-	string message{ ci->buffer->buffer.buf };
+	string message{ ci->buffer.buffer.buf };
 	
 	if (message.substr(0, 1) == LOGIN_MSG)
 	{
@@ -158,19 +132,19 @@ bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
 
 void UserVerifier::RespondSuccessfulLogin(ConnectionInfo* ci)
 {
-	strcpy(ci->buffer->buffer.buf, SUCCESSFUL_LOGIN);
+	strcpy(ci->buffer.buffer.buf, SUCCESSFUL_LOGIN);
 	SendToSSL(ci);
 }
 
 void UserVerifier::RespondUnsuccesfulLogin(ConnectionInfo* ci)
 {
-	strcpy(ci->buffer->buffer.buf, UNSUCCESSFUL_LOGIN);
+	strcpy(ci->buffer.buffer.buf, UNSUCCESSFUL_LOGIN);
 	SendToSSL(ci);
 }
 
 bool UserVerifier::VerifyLoginInformation(ConnectionInfo * ci)
 {
-	string msg{ci->buffer->buffer.buf};
+	string msg{ci->buffer.buffer.buf};
 	int delimiter = msg.find_first_of(DELIMITER, 1);
 	string sqlStatement{ "SELECT " };
 	sqlStatement += USERNAME_COL;
