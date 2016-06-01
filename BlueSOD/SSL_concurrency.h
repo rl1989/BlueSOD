@@ -63,7 +63,7 @@
 //#endif
 #include <thread>
 #include <vector>
-#include <shared_mutex>
+#include <mutex>
 
 #include <openssl/crypto.h>
 
@@ -71,7 +71,7 @@
 
 using std::thread;
 using std::vector;
-using std::shared_mutex;
+using std::mutex;
 //
 //void thread_setup(void);
 //void thread_cleanup(void);
@@ -80,7 +80,7 @@ using std::shared_mutex;
 
 //static HANDLE *lock_cs;
 //static vector<shared_mutex> openSSLMutexes;
-static shared_mutex* openSSLMutexes;
+static mutex* openSSLMutexes;
 
 
 static void win32_locking_callback(int mode, int type, char *file, int line)
@@ -88,12 +88,12 @@ static void win32_locking_callback(int mode, int type, char *file, int line)
 	if (mode & CRYPTO_LOCK)
 	{
 		//WaitForSingleObject(lock_cs[type], INFINITE);
-		openSSLMutexes[type].lock_shared();
+		openSSLMutexes[type].lock();
 	}
 	else
 	{
 		//ReleaseMutex(lock_cs[type]);
-		openSSLMutexes[type].unlock_shared();
+		openSSLMutexes[type].unlock();
 	}
 }
 
@@ -101,7 +101,7 @@ static void thread_setup()
 {
 	//lock_cs = static_cast<HANDLE*>(OPENSSL_malloc(CRYPTO_num_locks() * sizeof(HANDLE)));
 	//openSSLMutexes = vector<shared_mutex>(CRYPTO_num_locks());
-	openSSLMutexes = new shared_mutex[CRYPTO_num_locks()]{};
+	openSSLMutexes = new mutex[CRYPTO_num_locks()]{};
 
 	/*for (i = 0; i<CRYPTO_num_locks(); i++)
 	{
