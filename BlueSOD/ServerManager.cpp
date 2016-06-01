@@ -5,8 +5,12 @@
 #pragma comment(lib, "libeay32.lib")
 #pragma comment(lib, "ssleay32.lib")
 
+#define REJECTION_MESSAGE ""
+#define VERIFIED_MESSAGE ""
+
 using std::string;
 using std::fstream;
+using std::move;
 
 ServerManager::~ServerManager()
 {
@@ -174,6 +178,25 @@ bool ServerManager::Run(ServerState state)
 	{
 		switch (curState)
 		{
+			case ServerState::START_UP:
+				int port = GetPortNumber();
+				if (!OpenForConnections(port))
+				{
+					string fName, msg;
+					fName = ERROR_LOGS_LOCATION;
+					fName += CONNECTION_ERROR_LOG;
+					msg = time(nullptr);
+					msg += " Could not open for connection on port ";
+					msg += port;
+					LogManager::LogError(fName, msg);
+					
+					return false;
+				}
+				else
+				{
+					SetState(ServerState::RUNNING);
+				}
+				break;
 			//A new port was requested to be used by the administrator. Close the current socket and
 			//open a new one. Then send a message to any clients telling them to use the new port.
 			case ServerState::RESET:
@@ -184,7 +207,7 @@ bool ServerManager::Run(ServerState state)
 				break;
 				//Connect with any incoming clients.
 			case ServerState::RUNNING:
-				ConnectionInfo ci = std::move(AcceptIncomingConnection());
+				ConnectionInfo ci = move(AcceptIncomingConnection());
 				ConnectionStatus connStatus = ci.connStatus;
 				if (connStatus != ConnectionStatus::CONNECTION_OK)
 				{
@@ -207,6 +230,32 @@ bool ServerManager::Run(ServerState state)
 				else
 				{
 					/* Send Connection off to be verified. */
+					m_userVerifier.AddPendingConnection(move(ci));
+				}
+
+				if (m_userVerifier.CheckForVerifiedConnections())
+				{
+					for (int i = 0; i < m_userVerifier.NumVerifiedConnections(); i++)
+					{
+						ConnectionInfo ci = move(m_userVerifier.PopVerifiedConnection());
+						string msg = VERIFIED_MESSAGE;
+						/* Send a verified message. */
+						Send(&ci, msg);
+						/* Send verified connection to m_server. */
+						/*
+							Need to finish implementing Server.
+						*/
+					}
+				}
+				if (m_userVerifier.CheckRejectedConnections())
+				{
+					for (int i = 0; i < m_userVerifier.NumRejectedConnections(); i++)
+					{
+						ConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
+						string msg = REJECTION_MESSAGE;
+						/* Send a rejection message. */
+						Send(&ci, msg);
+					}
 				}
 				break;
 		}
@@ -225,28 +274,22 @@ bool ServerManager::Run(ServerState state)
 
 ServerState ServerManager::GetState()
 {
-	lock_guard<shared_mutex> lck(m_stateMutex);
-	return m_state;
+	return m_tsState.RetrieveObject();
 }
 
 void ServerManager::SetState(ServerState state)
 {
-	m_stateMutex.lock();
-	m_state = state;
-	m_stateMutex.unlock();
+	m_tsState.ChangeObject(state);
 }
 
 int ServerManager::GetPortNumber()
 {
-	lock_guard<shared_mutex> lck(m_portMutex);
-	return m_portNumber;
+	return m_tsPortNumber.RetrieveObject();
 }
 
 void ServerManager::SetPortNumber(int port)
 {
-	m_portMutex.lock();
-	m_portNumber = port;
-	m_portMutex.unlock();
+	m_tsPortNumber.ChangeObject(port);
 
 	if (GetState() == ServerState::RUNNING)
 	{
@@ -415,6 +458,11 @@ void ServerManager::CloseConnections()
 {
 	if (m_listenerSocket)
 		closesocket(m_listenerSocket);
+}
+
+void ServerManager::Send(ConnectionInfo * ci, const std::string & msg)
+{
+
 }
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)
