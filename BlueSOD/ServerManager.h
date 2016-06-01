@@ -45,8 +45,10 @@ class ServerManager
 private:
 	//The socket that the ServerManager listens for connections on.
 	SOCKET m_listenerSocket;
-	//The port ServerManager will be listening on.
-	int m_portNumber;
+	/*
+		The port to listen on. Will possibly be modified by more than one thread so it needs to be thread safe.
+	*/
+	ThreadSafe<int> m_tsPortNumber;
 	//The SSL context to be used.
 	SSL_CTX* m_sslContext;
 	//Determines if WSA was properly initialized. Connections cannot be made on a Windows
@@ -55,23 +57,21 @@ private:
 	//Determines if OpenSSL was properly initialized. SSL connections cannot be made unless
 	//the OpenSSL library was properly initialized.
 	bool m_bOpenSSL;
-	//The state of the ServerManager.
-	ServerState m_state;
+	/*
+		The state of the ServerManager. Will possibly be accessed by more than one thread, so it needes
+		to be thread safe.
+	*/
+	ThreadSafe<ServerState> m_tsState;
 	//The Server. This is where connections will be passed to once they are initialized and the
 	//user is logged in.
 	unique_ptr<Server> m_server;
-	//This guarantees that the state of the ServerManager will be modified by one thread at a time.
-	shared_mutex m_stateMutex;
-	//This guarantees that the ServerManager will be modified by one thread at a time.
-	shared_mutex m_serverManagerMutex;
-	//This guarantees that the port will only be modified by one thread at a time.
-	shared_mutex m_portMutex;
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
 	/*
 		Verifies user login information on a separate thread.
 	*/
+	UserVerifier m_userVerifier;
 
 public:
 	//The default constructor.
@@ -82,16 +82,14 @@ public:
 	//he/she deems necessary.
 	ServerManager(int port, const string& dbName)
 		: m_listenerSocket{ INVALID_SOCKET },
-		m_portNumber{ port },
+		m_tsPortNumber{ port },
 		m_sslContext{ nullptr },
 		m_bWSA{ false },
 		m_bOpenSSL{ false },
-		m_state{ ServerState::OFF },
+		m_tsState{ ServerState::OFF },
 		m_server{ nullptr },
-		m_stateMutex{},
-		m_serverManagerMutex{},
-		m_portMutex{},
-		m_runMutex{}
+		m_runMutex{},
+		m_userVerifier{ dbName }
 	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
@@ -195,6 +193,10 @@ private:
 		Close any connections.
 	*/
 	void CloseConnections();
+	/*
+		Send a message to the client.
+	*/
+	void Send(ConnectionInfo* ci, const std::string& msg);
 };
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);
