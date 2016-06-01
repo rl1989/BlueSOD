@@ -1,5 +1,7 @@
 #include "ServerConcurrency.h"
 
+using std::move;
+
 template<typename T>
 inline ThreadSafe<T>::ThreadSafe(const T & o)
 	:m_object{ o }
@@ -48,4 +50,12 @@ inline const T& ThreadSafe<T>::RetrieveObject()
 	lock_guard<mutex> lck(m_mutex);
 
 	return m_object;
+}
+
+template<typename T>
+T&& ThreadSafe<T>::MoveObject()
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	return move(m_object);
 }

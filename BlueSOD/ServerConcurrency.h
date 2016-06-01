@@ -2,6 +2,7 @@
 #include <mutex>
 #include <thread>
 #include <shared_mutex>
+#include <memory>
 
 using std::mutex;
 using std::shared_mutex;

@@ -1,5 +1,8 @@
 #pragma once
 #include "TS_Deque.h"
+using std::deque;
+using std::mutex;
+using std::lock_guard;
 
 template<typename T>
 T& TS_Deque<T>::Back()

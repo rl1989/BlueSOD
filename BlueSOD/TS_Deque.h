@@ -2,10 +2,6 @@
 #include <deque>
 #include <mutex>
 
-using std::deque;
-using std::mutex;
-using std::lock_guard;
-
 /*
 	A thread safe stack that allows the ServerManager to communicate with the thread that authenticates
 	users. The producer (ServerManager) will push the object into the TS_Queue object and the 
@@ -17,8 +13,8 @@ template<typename T>
 class TS_Deque
 {
 private:
-	mutex m_mutex;
-	deque<T> m_deque;
+	std::mutex m_mutex;
+	std::deque<T> m_deque;
 public:
 	TS_Deque() = default;
 	~TS_Deque() = default;
