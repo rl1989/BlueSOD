@@ -81,4 +81,20 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="sqlite3.exp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="sqlite3.def">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="sqlite3.dll">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="sqlite3.lib">
+      <Filter>Resource Files</Filter>
+    </Library>
+  </ItemGroup>
 </Project>

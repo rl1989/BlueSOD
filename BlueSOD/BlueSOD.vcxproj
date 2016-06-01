@@ -97,6 +97,7 @@
     <Link>
       <AdditionalLibraryDirectories>G:\Ricky\Documents\Programming\Tools\OpenSSL-Win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libeay32.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <TargetMachine>MachineX64</TargetMachine>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -149,6 +150,14 @@
     <ClCompile Include="SSLConnectionTest.cpp" />
     <ClCompile Include="TS_Deque.cpp" />
     <ClCompile Include="UserVerifier.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="sqlite3.def" />
+    <None Include="sqlite3.dll" />
+    <None Include="sqlite3.exp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="sqlite3.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
