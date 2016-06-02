@@ -1,4 +1,5 @@
 #include "ServerConnections.h"
+
 using std::move;
 
 Buffer::Buffer()
@@ -158,7 +159,12 @@ ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 	return *this;
 }
 
-bool ConnectionInfo::operator==(const ConnectionInfo & ref)
+ConnectionInfo::~ConnectionInfo()
+{
+	connection.Close();
+}
+
+bool ConnectionInfo::operator==(const ConnectionInfo& ref)
 {
 	return (connection == ref.connection && buffer.buffer.buf == ref.buffer.buffer.buf
 		&& buffer.buffer.len == ref.buffer.buffer.len && verified == ref.verified 
@@ -168,6 +174,19 @@ bool ConnectionInfo::operator==(const ConnectionInfo & ref)
 bool Connection::operator==(const Connection& ref)
 {
 	return (socket == ref.socket && ssl == ref.ssl && address == ref.address);
+}
+
+void Connection::Close()
+{
+	if (ssl != nullptr)
+	{
+		SSL_shutdown(ssl);
+		SSL_free(ssl);
+	}
+	if (socket != INVALID_SOCKET)
+	{
+		closesocket(socket);
+	}
 }
 
 ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length)

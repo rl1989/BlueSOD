@@ -49,6 +49,8 @@ struct Connection
 
 	bool operator==(const Connection& ref);
 	bool operator==(Connection& ref);
+
+	void Close();
 };
 
 struct ConnectionInfo
@@ -67,7 +69,7 @@ struct ConnectionInfo
 	ConnectionInfo(ConnectionInfo&& move);
 	ConnectionInfo& operator=(const ConnectionInfo& ref);
 	ConnectionInfo& operator=(ConnectionInfo&& move);
-	~ConnectionInfo()=default;
+	~ConnectionInfo();
 
 	bool operator==(const ConnectionInfo& ref);
 	bool operator==(ConnectionInfo& ref);
@@ -81,7 +83,6 @@ struct ConnectionInfo
 
 	The status of the connection is stored in ci.connStatus.
 */
-[[noreturn]]
 ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length = BUFFER_SIZE);
 
 /*
@@ -89,5 +90,4 @@ ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length = BUFFER_SIZE);
 
 	The status of the connection is stored in ci.connStatus;
 */
-[[noreturn]]
 ConnectionInfo* SendToSSL(ConnectionInfo* ci, int length = BUFFER_SIZE);
