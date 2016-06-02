@@ -9,7 +9,7 @@ void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 	m_pendingConnections.PushBack(move(ci));
 }
 
-bool UserVerifier::CheckForVerifiedConnections()
+bool UserVerifier::HasVerifiedConnections()
 {
 	return m_verifiedConnections.Empty();
 }
@@ -19,7 +19,7 @@ int UserVerifier::NumVerifiedConnections()
 	return m_verifiedConnections.Size();
 }
 
-bool UserVerifier::CheckRejectedConnections()
+bool UserVerifier::HasRejectedConnections()
 {
 	return !m_rejectedConnections.Empty();
 }
@@ -45,11 +45,28 @@ void UserVerifier::Run(ServerState state)
 
 	while (GetState() == ServerState::RUNNING)
 	{
-		if (CheckForPendingConnections())
+		if (HasPendingConnections())
 		{
 			while (NumOfPendingConnections() > 0)
 			{
-				
+				ConnectionInfo ci = move(PopPendingConnection());
+
+				ReadFromSSL(&ci);
+				if (VerifyLoginAttempt(&ci))
+				{
+					if (VerifyLoginInformation(&ci))
+					{
+						AddVerifiedConnection(move(ci));
+					}
+					else
+					{
+						AddRejectedConnection(move(ci));
+					}
+				}
+				else
+				{
+					AddInvalidRequest(move(ci));
+				}
 			}
 		}
 	}
@@ -90,10 +107,10 @@ ConnectionInfo UserVerifier::PopPendingConnection()
 
 void UserVerifier::AddVerifiedConnection(ConnectionInfo&& ci)
 {
-	m_verifiedConnections.PushBack(move(ci));
+	m_verifiedConnections.PushBack(ci);
 }
 
-bool UserVerifier::CheckForPendingConnections()
+bool UserVerifier::HasPendingConnections()
 {
 	return !m_pendingConnections.Empty();
 }
@@ -105,17 +122,12 @@ int UserVerifier::NumOfPendingConnections()
 
 void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
 {
-	m_rejectedConnections.PushBack(move(ci));
+	m_rejectedConnections.PushBack(ci);
 }
 
 void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
 {
-	m_invalidRequests.PushBack(move(ci));
-}
-
-bool UserVerifier::RequestingLogin(ConnectionInfo* ci, const string& userName, const string& password)
-{
-	return false;
+	m_invalidRequests.PushBack(ci);
 }
 
 bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
@@ -128,18 +140,6 @@ bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
 	}
 
 	return false;
-}
-
-void UserVerifier::RespondSuccessfulLogin(ConnectionInfo* ci)
-{
-	strcpy(ci->buffer.buffer.buf, SUCCESSFUL_LOGIN);
-	SendToSSL(ci);
-}
-
-void UserVerifier::RespondUnsuccesfulLogin(ConnectionInfo* ci)
-{
-	strcpy(ci->buffer.buffer.buf, UNSUCCESSFUL_LOGIN);
-	SendToSSL(ci);
 }
 
 bool UserVerifier::VerifyLoginInformation(ConnectionInfo * ci)

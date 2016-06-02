@@ -29,26 +29,23 @@ public:
 		m_db{ userInfoDbLocation }
 	{}
 	void AddPendingConnection(ConnectionInfo&& ci);
-	bool CheckForVerifiedConnections();
+	bool HasVerifiedConnections();
 	int NumVerifiedConnections();
 	ConnectionInfo PopVerifiedConnection();
-	bool CheckRejectedConnections();
+	bool HasRejectedConnections();
 	int NumRejectedConnections();
 	ConnectionInfo PopRejectedConnection();
-	void Run(ServerState state);
+	void Run(ServerState state = ServerState::RUNNING);
 	void SetState(ServerState state);
 	ServerState GetState();
 
 private:
 	ConnectionInfo PopPendingConnection();
 	void AddVerifiedConnection(ConnectionInfo&& ci);
-	bool CheckForPendingConnections();
+	bool HasPendingConnections();
 	int NumOfPendingConnections();
 	void AddRejectedConnection(ConnectionInfo&& ci);
 	void AddInvalidRequest(ConnectionInfo&& ci);
-	bool RequestingLogin(ConnectionInfo* ci, const std::string& userName, const std::string& password);
 	bool VerifyLoginAttempt(ConnectionInfo* ci);
-	void RespondSuccessfulLogin(ConnectionInfo* ci);
-	void RespondUnsuccesfulLogin(ConnectionInfo* ci);
 	bool VerifyLoginInformation(ConnectionInfo* ci);
 };
