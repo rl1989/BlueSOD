@@ -11,10 +11,22 @@
 using std::string;
 using std::fstream;
 using std::move;
+using std::thread;
+
+inline void StartServer(Server* server, ServerState state)
+{
+	server->SetState(state);
+	server->Run();
+}
+
+inline void StartUserVerifier(UserVerifier* uv, ServerState state)
+{
+	uv->Run(state);
+}
 
 ServerManager::~ServerManager()
 {
-	Cleanup();
+	Shutdown();
 }
 
 bool ServerManager::Init()
@@ -165,13 +177,6 @@ bool ServerManager::Run(ServerState state)
 		return false;
 	}
 
-	//A Server is already running, so set its state to state.
-	//This may be unnecessary whenever Server is fully functional.
-	if (m_server != nullptr)
-	{
-		m_server->SetState(state);
-	}
-
 	SetState(state);
 	ServerState curState = state;
 	while (curState != ServerState::OFF || curState != ServerState::NOT_ACCEPTING_CONNECTIONS)
@@ -179,6 +184,7 @@ bool ServerManager::Run(ServerState state)
 		switch (curState)
 		{
 			case ServerState::START_UP:
+			{
 				int port = GetPortNumber();
 				if (!OpenForConnections(port))
 				{
@@ -189,13 +195,14 @@ bool ServerManager::Run(ServerState state)
 					msg += " Could not open for connection on port ";
 					msg += port;
 					LogManager::LogError(fName, msg);
-					
+
 					return false;
 				}
 				else
 				{
 					SetState(ServerState::RUNNING);
 				}
+			}
 				break;
 			//A new port was requested to be used by the administrator. Close the current socket and
 			//open a new one. Then send a message to any clients telling them to use the new port.
@@ -233,7 +240,7 @@ bool ServerManager::Run(ServerState state)
 					m_userVerifier.AddPendingConnection(move(ci));
 				}
 
-				if (m_userVerifier.CheckForVerifiedConnections())
+				if (m_userVerifier.HasVerifiedConnections())
 				{
 					for (int i = 0; i < m_userVerifier.NumVerifiedConnections(); i++)
 					{
@@ -242,12 +249,10 @@ bool ServerManager::Run(ServerState state)
 						/* Send a verified message. */
 						Send(&ci, msg);
 						/* Send verified connection to m_server. */
-						/*
-							Need to finish implementing Server.
-						*/
+						/* Need to finish implementing Server. */
 					}
 				}
-				if (m_userVerifier.CheckRejectedConnections())
+				if (m_userVerifier.HasRejectedConnections())
 				{
 					for (int i = 0; i < m_userVerifier.NumRejectedConnections(); i++)
 					{
@@ -255,10 +260,15 @@ bool ServerManager::Run(ServerState state)
 						string msg = REJECTION_MESSAGE;
 						/* Send a rejection message. */
 						Send(&ci, msg);
+						/* ConnectionInfo's destructor calls Close() on ci.connection, so no need to 
+						   explicitly call it. */
 					}
 				}
 				break;
 		}
+
+		m_server.SetState(curState);
+		m_userVerifier.SetState(curState);
 
 		curState = GetState();
 	}
@@ -270,6 +280,21 @@ bool ServerManager::Run(ServerState state)
 	m_runMutex.unlock();
 
 	return true;
+}
+
+inline void ServerManager::Stop()
+{
+	SetState(ServerState::OFF);
+	m_server.SetState(ServerState::OFF);
+	m_userVerifier.SetState(ServerState::OFF);
+}
+
+inline void ServerManager::Shutdown()
+{
+	Stop();
+	m_serverThread.join();
+	m_uvThread.join();
+	Cleanup();
 }
 
 ServerState ServerManager::GetState()
@@ -460,7 +485,7 @@ void ServerManager::CloseConnections()
 		closesocket(m_listenerSocket);
 }
 
-void ServerManager::Send(ConnectionInfo * ci, const std::string & msg)
+void ServerManager::Send(ConnectionInfo* ci, const std::string& msg)
 {
 
 }

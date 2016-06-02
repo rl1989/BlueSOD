@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <time.h>
+#include <thread>
 #include "Server.h"
 #include "ServerConcurrency.h"
 #include "ServerConnections.h"
@@ -15,9 +16,8 @@ extern void thread_cleanup();
 extern void thread_setup();
 extern void win32_locking_callback(int, int, char*, int);
 
-using std::string;
-using std::unique_ptr;
-using std::shared_ptr;
+void StartServer(Server* server, ServerState state);
+void StartUserVerifier(UserVerifier* uv, ServerState state);
 
 //The port the server will isten on.
 #define SERVER_PORT 2048
@@ -64,7 +64,7 @@ private:
 	ThreadSafe<ServerState> m_tsState;
 	//The Server. This is where connections will be passed to once they are initialized and the
 	//user is logged in.
-	unique_ptr<Server> m_server;
+	Server m_server;
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
@@ -72,6 +72,8 @@ private:
 		Verifies user login information on a separate thread.
 	*/
 	UserVerifier m_userVerifier;
+	std::thread m_serverThread;
+	std::thread m_uvThread;
 
 public:
 	//The default constructor.
@@ -80,23 +82,27 @@ public:
 	{}
 	//This constructor allows the administrator to listen on whatever port
 	//he/she deems necessary.
-	ServerManager(int port, const string& dbName)
+	ServerManager(int port, const std::string& dbName)
 		: m_listenerSocket{ INVALID_SOCKET },
 		m_tsPortNumber{ port },
 		m_sslContext{ nullptr },
 		m_bWSA{ false },
 		m_bOpenSSL{ false },
 		m_tsState{ ServerState::OFF },
-		m_server{ nullptr },
+		m_server{},
 		m_runMutex{},
 		m_userVerifier{ dbName }
-	{}
+	{
+		m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
+		m_uvThread = std::thread(StartUserVerifier, &m_userVerifier, ServerState::OFF);
+	}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
 	bool Run(ServerState state = ServerState::RUNNING);
 	//Stops the ServerManager. The ServerManager will not immediately shut down, but a signal
 	//will be sent to inform it to shut down.
-	inline void Stop() { SetState(ServerState::OFF); }
+	inline void Stop();
+	inline void Shutdown();
 	//Returns the state of the ServerManager.
 	inline ServerState GetState();
 	//Modifies the state of the ServerManager.
