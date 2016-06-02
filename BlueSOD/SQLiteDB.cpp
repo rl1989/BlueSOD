@@ -12,6 +12,7 @@ using std::endl;
 #endif
 using std::make_unique;
 using std::array;
+using std::string;
 
 int SQLiteDb::ExecuteStatement(const string& statement)
 {
@@ -30,28 +31,26 @@ int SQLiteDb::ExecuteStatement(const string& statement)
 			break;
 		default:
 			SetColumnCount(0);
-			return res;
+			break;
 	}
-
-	CreateNewBuffers();
-	FillRowData();
 
 	return res;
 }
 
 int SQLiteDb::GetColumnInt(int col)
 {
-	return *m_intColBuffer[col];
+	return sqlite3_column_int(m_sqlStatement, col);
 }
 
-string& SQLiteDb::GetColumnTxt(int col)
+string SQLiteDb::GetColumnTxt(int col)
 {
-	return *m_txtColBuffer[col];
+	string data = (const char*)sqlite3_column_text(m_sqlStatement, col);
+	return data;
 }
 
 double SQLiteDb::GetColumnDouble(int col)
 {
-	return *m_dblColBuffer[col];
+	return sqlite3_column_double(m_sqlStatement, col);
 }
 
 int SQLiteDb::StepNextRow()
@@ -91,84 +90,10 @@ void SQLiteDb::CloseDb()
 
 string SQLiteDb::CleanStatement(const string& statement)
 {
-	return std::move(statement);
+	return statement;
 }
 
 void SQLiteDb::SetColumnCount(int c)
 {
 	m_numberOfColumns = c;
 }
-
-template<typename B>
-void SQLiteDb::DeleteRowData(B** buffer)
-{
-	if (buffer == nullptr)
-		return;
-	for (int i = 0; i < ColumnCount(); i++)
-	{
-		if (buffer[i] != nullptr)
-		{
-			delete buffer[i];
-			buffer[i] = nullptr;
-		}
-	}
-}
-
-template<typename B>
-void SQLiteDb::DeleteBuffer(B** buffer)
-{
-	if (buffer != nullptr)
-		delete buffer;
-	buffer = nullptr;
-}
-
-void SQLiteDb::ClearRowData()
-{
-	DeleteRowData(m_intColBuffer);
-	DeleteRowData(m_dblColBuffer);
-	DeleteRowData(m_txtColBuffer);
-}
-
-void SQLiteDb::ClearBuffers()
-{
-	ClearRowData();
-	DeleteBuffer(m_intColBuffer);
-	DeleteBuffer(m_dblColBuffer);
-	DeleteBuffer(m_txtColBuffer);
-}
-
-void SQLiteDb::CreateNewBuffers()
-{
-	ClearBuffers();
-
-	int columns = ColumnCount();
-	m_intColBuffer = new int*[columns] {nullptr};
-	m_dblColBuffer = new double*[columns] {nullptr};
-	m_txtColBuffer = new string*[columns] {nullptr};
-}
-
-void SQLiteDb::FillRowData()
-{
-	ClearRowData();
-
-	for (int i = 0; i < ColumnCount(); i++)
-	{
-		switch (sqlite3_column_type(m_sqlStatement, i))
-		{
-			case SQLITE_INTEGER:
-				m_intColBuffer[i] = new int;
-				*m_intColBuffer[i] = sqlite3_column_int(m_sqlStatement, i);
-				break;
-			case SQLITE_FLOAT:
-				m_dblColBuffer[i] = new double;
-				*m_dblColBuffer[i] = sqlite3_column_double(m_sqlStatement, i);
-				break;
-			case SQLITE_TEXT:
-				m_txtColBuffer[i] = new string{(const char*)sqlite3_column_text(m_sqlStatement, i)};
-				break;
-			default:
-				break;
-		}
-	}
-}
-
