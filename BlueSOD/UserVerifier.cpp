@@ -51,7 +51,35 @@ void UserVerifier::Run(ServerState state)
 			{
 				ConnectionInfo ci = move(PopPendingConnection());
 
-				ReadFromSSL(&ci);
+				if (ci.connection.ssl != nullptr)
+				{
+					ReadFromSSL(&ci);
+					if (ci.sslStatus == SSLStatus::NO_DATA_PRESENT)
+					{
+						AddPendingConnection(move(ci));
+						continue;
+					}
+					else if (ci.sslStatus == SSLStatus::SSL_ERROR)
+					{
+						/* Log error and let ci go out of scope in order to shut down the connection. */
+						continue;
+					}
+				}
+				else
+				{
+					ReadFromSocket(&ci);
+					if (ci.connStatus == ConnectionStatus::NO_DATA_PRESENT)
+					{
+						AddPendingConnection(move(ci));
+						continue;
+					}
+					else if (ci.connStatus == ConnectionStatus::CONNECTION_ERROR)
+					{
+						/* Log error and let ci go out of scope in order to shut down the connection. */
+						continue;
+					}
+				}
+
 				if (VerifyLoginAttempt(&ci))
 				{
 					if (VerifyLoginInformation(&ci))
