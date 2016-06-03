@@ -66,6 +66,7 @@
 #include <mutex>
 
 #include <openssl/crypto.h>
+#include "ServerManager.h"
 
 #define MAX_THREAD_NUMBER	100
 
