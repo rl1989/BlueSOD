@@ -113,7 +113,8 @@ ConnectionInfo::ConnectionInfo(const ConnectionInfo& ref)
 	: connection{ref.connection.socket, ref.connection.ssl, ref.connection.address},
 	verified{ref.verified},
 	buffer{ref.buffer},
-	connStatus{ref.connStatus}
+	connStatus{ref.connStatus},
+	sslStatus{ref.sslStatus}
 {
 }
 
@@ -121,25 +122,25 @@ ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
 	: connection{move.connection.socket, move.connection.ssl, move.connection.address},
 	buffer{move.buffer},
 	verified{move.verified},
-	connStatus{move.connStatus}
+	connStatus{move.connStatus},
+	sslStatus{move.sslStatus}
 {
 	move.connection.socket = INVALID_SOCKET;
 	move.connection.ssl = nullptr;
 	move.connection.address = 0;
-	move.connStatus = ConnectionStatus::CONNECTION_NOT_INITIATED;
+	move.connStatus = ConnectionStatus::CONNECTION_ERROR;
+	move.sslStatus = SSLStatus::SSL_ERROR;
 }
 
 ConnectionInfo& ConnectionInfo::operator=(const ConnectionInfo& ref)
 {
-	if (*this == ref)
-		return *this;
-
 	connection.socket = ref.connection.socket;
 	connection.ssl = ref.connection.ssl;
 	connection.address = ref.connection.address;
 	buffer = ref.buffer;
 	verified = ref.verified;
 	connStatus = ref.connStatus;
+	sslStatus = ref.sslStatus;
 
 	return *this;
 }
@@ -150,11 +151,13 @@ ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 	buffer = std::move(move.buffer);
 	verified = move.verified;
 	connStatus = move.connStatus;
+	sslStatus = move.sslStatus;
 
 	move.connection.socket = INVALID_SOCKET;
 	move.connection.ssl = nullptr;
 	move.connection.address = 0;
-	move.connStatus = ConnectionStatus::CONNECTION_NOT_INITIATED;
+	move.connStatus = ConnectionStatus::CONNECTION_ERROR;
+	move.sslStatus = SSLStatus::SSL_ERROR;
 
 	return *this;
 }
@@ -168,7 +171,7 @@ bool ConnectionInfo::operator==(const ConnectionInfo& ref)
 {
 	return (connection == ref.connection && buffer.buffer.buf == ref.buffer.buffer.buf
 		&& buffer.buffer.len == ref.buffer.buffer.len && verified == ref.verified 
-		&& connStatus == ref.connStatus);
+		&& connStatus == ref.connStatus && sslStatus == ref.sslStatus);
 }
 
 bool Connection::operator==(const Connection& ref)
@@ -189,47 +192,120 @@ void Connection::Close()
 	}
 }
 
-ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length)
+ConnectionInfo* ReadFromSSL(ConnectionInfo* ci)
 {
 	SSL* ssl = ci->connection.ssl;
-	if (ssl == nullptr)
-	{
-		ci->connStatus = ConnectionStatus::SSL_NOT_INITIATED;
-		return ci;
-	}
-
+	int length = ci->buffer.buffer.len;
 	char* buffer = ci->buffer.buffer.buf;
-	int res = SSL_read(ssl, buffer, length);
-	if (res <= 0)
+
+	if (SSL_pending(ssl) > 0)
 	{
-		LogManager::LogSSLError();
-		ci->connStatus = ConnectionStatus::SSL_ERROR;
-		return ci;
+		int res = SSL_read(ssl, buffer, length);
+
+		if (res <= 0)
+		{
+			ci->sslStatus = SSLStatus::SSL_ERROR;
+			return ci;
+		}
+		ci->buffer.bytesRecv = res;
+		ci->sslStatus = SSLStatus::SSL_READ;
 	}
-	ci->buffer.bytesRecv = res;
-	ci->connStatus = ConnectionStatus::SSL_READ;
+	else
+	{
+		ci->sslStatus = SSLStatus::NO_DATA_PRESENT;
+	}
 
 	return ci;
 }
 
-ConnectionInfo* SendToSSL(ConnectionInfo* ci, int length)
+ConnectionInfo* WriteToSSL(ConnectionInfo* ci)
 {
 	SSL* ssl = ci->connection.ssl;
-	if (ssl == nullptr)
+	int length = ci->buffer.buffer.len;
+	char* buffer = ci->buffer.buffer.buf;
 	{
-		ci->connStatus = ConnectionStatus::SSL_NOT_INITIATED;
+		fd_set write;
+		ZeroMemory(&write, sizeof(write));
+		FD_SET(ci->connection.socket, &write);
+		timeval timeout{0, 100};
+
+		switch (select(0, nullptr, &write, nullptr, &timeout))
+		{
+			case 0:
+				ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+				return ci;
+			case SOCKET_ERROR:
+				ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+				return ci;
+			default:
+				ci->connStatus = ConnectionStatus::CONNECTION_OK;
+				break;
+		}
+	}
+
+	int res = SSL_write(ssl, buffer, length);
+
+	if (res <= 0)
+	{
+		ci->sslStatus = SSLStatus::SSL_ERROR;
+		return ci;
+	}
+	ci->buffer.bytesSent = res;
+	ci->sslStatus = SSLStatus::SSL_SENT;
+
+	return ci;
+}
+
+ConnectionInfo* ReadFromSocket(ConnectionInfo* ci)
+{
+	SOCKET s = ci->connection.socket;
+	int length = ci->buffer.buffer.len;
+	char* buffer = ci->buffer.buffer.buf;
+	int res = recv(s, buffer, length, MSG_OOB);
+
+	if (res == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			ci->connStatus = ConnectionStatus::NO_DATA_PRESENT;
+		}
+		else
+		{
+			ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		}
+
 		return ci;
 	}
 
+	ci->buffer.bytesRecv = res;
+	ci->connStatus = ConnectionStatus::CONNECTION_READ;
+
+	return ci;
+}
+
+ConnectionInfo* WriteToSocket(ConnectionInfo* ci)
+{
+	SOCKET s = ci->connection.socket;
+	int length = ci->buffer.buffer.len;
 	char* buffer = ci->buffer.buffer.buf;
-	int res = SSL_write(ssl, buffer, length);
-	if (res <= 0)
+	int res = send(s, buffer, length, MSG_OOB);
+
+	if (res == SOCKET_ERROR)
 	{
-		ci->connStatus = ConnectionStatus::SSL_ERROR;
-		LogManager::LogSSLError();
+		if (WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			ci->connStatus = ConnectionStatus::NO_DATA_PRESENT;
+		}
+		else
+		{
+			ci->connStatus = ConnectionStatus::CONNECTION_ERROR;
+		}
+
 		return ci;
 	}
-	ci->connStatus = ConnectionStatus::SSL_SENT;
+
+	ci->buffer.bytesSent = res;
+	ci->connStatus = ConnectionStatus::CONNECTION_SENT;
 
 	return ci;
 }

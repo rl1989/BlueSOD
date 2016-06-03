@@ -3,10 +3,12 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <memory>
+#include <string>
 #include "LogManager.h"
 
-//The maximum size of a message a client can send.
+//The maximum size of a message a client can send/receive at a time.
 #define BUFFER_SIZE 1024
+
 //Defines the state of the server. Names are self explanatory.
 enum ServerState
 {
@@ -17,13 +19,21 @@ enum ConnectionStatus
 {
 	CONNECTION_OK,
 	CONNECTION_ACCEPTED,
+	CONNECTION_READ,
+	CONNECTION_SENT,
 	CONNECTION_ERROR,
 	NO_DATA_PRESENT,
-	CONNECTION_NOT_INITIATED,
+	CONNECTION_NOT_INITIATED
+};
+
+enum SSLStatus
+{
 	SSL_OK,
-	SSL_SENT = SSL_OK,
-	SSL_READ = SSL_OK,
+	SSL_ACCEPTED,
+	SSL_SENT,
+	SSL_READ,
 	SSL_ERROR,
+	NO_DATA_PRESENT,
 	SSL_NOT_INITIATED
 };
 
@@ -59,6 +69,7 @@ struct ConnectionInfo
 	Connection connection;
 	bool verified;
 	ConnectionStatus connStatus;
+	SSLStatus sslStatus;
 
 	ConnectionInfo();
 	ConnectionInfo(const Connection& ref);
@@ -75,19 +86,16 @@ struct ConnectionInfo
 	bool operator==(ConnectionInfo& ref);
 };
 
-/*
-	Read from the SSL connection. The message is stored in buffer which must be of size BUFFER_SIZE.
-	Alternatively, you can tell the function where in the buffer to store the information. If the amount
-	of data to be read is more than length-start, then the data is thrown away. If buffer is nullptr, then
-	this function throws away the data that would have been stored there.
+/*  Read from the SSL connection. The message is stored in buffer which must be of size BUFFER_SIZE.
 
-	The status of the connection is stored in ci.connStatus.
-*/
-ConnectionInfo* ReadFromSSL(ConnectionInfo* ci, int length = BUFFER_SIZE);
+	The status of the connection is stored in ci.sslStatus. */
+ConnectionInfo* ReadFromSSL(ConnectionInfo* ci);
 
-/*
-	Send a message to an SSL connection.
+/*  Send a message that is stored in buffer to an SSL connection.
 
-	The status of the connection is stored in ci.connStatus;
-*/
-ConnectionInfo* SendToSSL(ConnectionInfo* ci, int length = BUFFER_SIZE);
+	The status of the connection is stored in ci.sslStatus. */
+ConnectionInfo* WriteToSSL(ConnectionInfo* ci);
+
+ConnectionInfo* ReadFromSocket(ConnectionInfo* ci);
+
+ConnectionInfo* WriteToSocket(ConnectionInfo* ci);
