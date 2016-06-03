@@ -99,10 +99,6 @@ public:
 	~ServerManager();
 	//Run the ServerManager with the specified state.
 	bool Run(ServerState state = ServerState::RUNNING);
-	//Stops the ServerManager. The ServerManager will not immediately shut down, but a signal
-	//will be sent to inform it to shut down.
-	inline void Stop();
-	inline void Shutdown();
 	//Returns the state of the ServerManager.
 	inline ServerState GetState();
 	//Modifies the state of the ServerManager.
@@ -160,6 +156,9 @@ private:
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).
 	void StopAcceptingConnections();
+	/**/
+	inline void Shutdown();
+
 	//Creates the listening socket on port.
 	//Arguments:
 	//  int port - The port to create the listening socket on.

@@ -31,6 +31,10 @@ ServerManager::~ServerManager()
 
 bool ServerManager::Init()
 {
+	//Save the state to change it back after everything is initialized
+	ServerState state = GetState();
+	SetState(ServerState::START_UP);
+
 	//WSA isn't initialized so initialize it.
 	if (!m_bWSA)
 	{
@@ -56,7 +60,9 @@ bool ServerManager::Init()
 			LogManager::LogError(CONNECTION_ERROR_LOG, error);
 		}
 	}
-	
+
+	SetState(state);
+
 	return true;
 }
 
@@ -71,6 +77,8 @@ void ServerManager::Cleanup()
 
 bool ServerManager::Reset()
 {
+	Shutdown();
+	Init();
 	closesocket(m_listenerSocket);
 	if (!OpenForConnections(GetPortNumber()))
 	{
@@ -81,8 +89,11 @@ bool ServerManager::Reset()
 		errorMsg += " for listening on ServerManager.";
 		LogManager::LogError(CONNECTION_ERROR_LOG, errorMsg);
 
+		SetState(ServerState::NOT_ACCEPTING_CONNECTIONS);
+
 		return false;
 	}
+	SetState(ServerState::RUNNING);
 	return true;
 }
 
@@ -135,6 +146,10 @@ ConnectionInfo ServerManager::AcceptIncomingConnection()
 		ci.connStatus = ConnectionStatus::CONNECTION_ERROR;
 		return ci;
 	}
+	else
+	{
+		ci.connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
+	}
 
 	SSL* ssl = nullptr;
 	if (m_sslContext)
@@ -147,10 +162,14 @@ ConnectionInfo ServerManager::AcceptIncomingConnection()
 			LogManager::LogSSLError();
 			SSL_free(ssl);
 			ssl = nullptr;
+			ci.sslStatus = SSLStatus::SSL_ERROR;
+		}
+		else
+		{
+			ci.sslStatus = SSLStatus::SSL_ACCEPTED;
 		}
 	}
 
-	ci.connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
 	ci.connection.socket = socket;
 	ci.connection.address = addr.sin_addr.S_un.S_addr;
 	ci.connection.ssl = ssl;
@@ -179,7 +198,7 @@ bool ServerManager::Run(ServerState state)
 
 	SetState(state);
 	ServerState curState = state;
-	while (curState != ServerState::OFF || curState != ServerState::NOT_ACCEPTING_CONNECTIONS)
+	while (curState != ServerState::OFF)
 	{
 		switch (curState)
 		{
@@ -204,19 +223,19 @@ bool ServerManager::Run(ServerState state)
 				}
 			}
 				break;
-			//A new port was requested to be used by the administrator. Close the current socket and
-			//open a new one. Then send a message to any clients telling them to use the new port.
+
+			/*A new port was requested to be used by the administrator. Close the current socket and
+			open a new one. Then send a message to any clients telling them to use the new port.*/
 			case ServerState::RESET:
-				//m_server->CloseConnections();
 				if (!Reset())
 					return false;
-				//m_server->ReconnectWithClientsOn(GetPortNumber());
 				break;
-				//Connect with any incoming clients.
+			
+			/*Connect with any incoming clients.*/
 			case ServerState::RUNNING:
 				ConnectionInfo ci = move(AcceptIncomingConnection());
 				ConnectionStatus connStatus = ci.connStatus;
-				if (connStatus != ConnectionStatus::CONNECTION_OK)
+				if (connStatus == ConnectionStatus::CONNECTION_ERROR)
 				{
 					if (connStatus == ConnectionStatus::NO_DATA_PRESENT)
 					{
@@ -272,28 +291,22 @@ bool ServerManager::Run(ServerState state)
 
 		curState = GetState();
 	}
-	if (curState == ServerState::OFF)
-	{
-		Cleanup();
-	}
 
 	m_runMutex.unlock();
 
 	return true;
 }
 
-inline void ServerManager::Stop()
+inline void ServerManager::Shutdown()
 {
 	SetState(ServerState::OFF);
 	m_server.SetState(ServerState::OFF);
 	m_userVerifier.SetState(ServerState::OFF);
-}
 
-inline void ServerManager::Shutdown()
-{
-	Stop();
-	m_serverThread.join();
-	m_uvThread.join();
+	if (m_serverThread.joinable())
+		m_serverThread.join();
+	if (m_uvThread.joinable())
+		m_uvThread.join();
 	Cleanup();
 }
 
@@ -449,6 +462,7 @@ void ServerManager::CleanupOpenSSL()
 	//OpenSSL wasn't initialized, so this function does nothing.
 	if (!m_bOpenSSL)
 		return;
+	m_bOpenSSL = false;
 	SSL_CTX_free(m_sslContext);
 	EVP_cleanup();
 }
@@ -477,6 +491,7 @@ void ServerManager::CleanupWSA()
 {
 	if (!m_bWSA)
 		WSACleanup();
+	m_bWSA = false;
 }
 
 void ServerManager::CloseConnections()
