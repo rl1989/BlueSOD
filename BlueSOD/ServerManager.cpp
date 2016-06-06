@@ -15,8 +15,7 @@ using std::thread;
 
 inline void StartServer(Server* server, ServerState state)
 {
-	server->SetState(state);
-	server->Run();
+	server->Run(state);
 }
 
 inline void StartUserVerifier(UserVerifier* uv, ServerState state)
@@ -268,7 +267,7 @@ bool ServerManager::Run(ServerState state)
 						/* Send a verified message. */
 						Send(&ci, msg);
 						/* Send verified connection to m_server. */
-						/* Need to finish implementing Server. */
+						m_server.AddClient(move(ci));
 					}
 				}
 				if (m_userVerifier.HasRejectedConnections())
@@ -502,7 +501,14 @@ void ServerManager::CloseConnections()
 
 void ServerManager::Send(ConnectionInfo* ci, const std::string& msg)
 {
+	strcpy(ci->buffer.buffer.buf, msg.c_str());
+	ci->buffer.buffer.len = strlen(msg.c_str());
+	ci->buffer.bytesSent = 0;
 
+	if (ci->connection.ssl)
+		WriteToSSL(ci);
+	else
+		WriteToSocket(ci);
 }
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)
@@ -514,8 +520,8 @@ int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)
 
 	file = fopen(fName.c_str(), "r");
 	//Get the password.
-	fgets(buffer, sizeOfBuffer - 2, file);
-	buffer[sizeOfBuffer - 1] = '\0';
+	fgets(buffer, sizeOfBuffer - 1, file);
+	buffer[sizeOfBuffer] = 0;
 
 	fclose(file);
 
