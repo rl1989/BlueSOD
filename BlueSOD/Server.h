@@ -4,12 +4,16 @@
 #include <openssl/err.h>
 #include <iostream>
 #include <vector>
-#include <memory>
+#include <mutex>
 #include "ServerConnections.h"
 #include "ServerConcurrency.h"
+#include "SQLiteDB.h"
 
-using std::vector;
-using std::unique_ptr;
+#define BEGIN_MESSAGE "{beg}"
+#define END_MESSAGE "{end}"
+#define IMAGE_MESSAGE "{image}"
+#define END_IMAGE_MESSAGE "{/image}"
+
 
 //This class represents the Server. The ServerManager will handle any initial incoming connections
 //and will pass it off to the Server, which lies in its own thread. The Server then will handle
@@ -20,45 +24,31 @@ class Server
 {
 private:
 	//List of clients currently connected.
-	vector<unique_ptr<ConnectionInfo>> m_clients;
+	std::vector<ConnectionInfo> m_clientList;
+	std::mutex m_clientListMutex;
 	//The state of the Server.
-	ServerState m_state;
-
-	shared_mutex m_stateMutex;
-	shared_mutex m_accessMutex;
+	ThreadSafe<ServerState> m_state;
+	//Represents the client being "worked" on
+	int m_client;
+	SQLiteDb m_db;
 
 public:
 	//Constructor takes in the unique information regarding the initial connecting client.
 	~Server() {}
 
 	//Add a client to the server.
-	void AddClient(const Connection& client);
+	void AddClient(ConnectionInfo&& client);
 	
 	//Returns the number of clients currently connected.
 	int NumberOfClients();
 	//Initializes the server. This is where the code for handling communication will be.
 	//TO DO: Implement.
-	void Run();
+	void Run(ServerState state = ServerState::RUNNING);
 	//Sets the state of the Server.
-	inline void SetState(ServerState state)
-	{
-		lock_guard<shared_mutex> lck(m_stateMutex);
-
-		m_state = state;
-	}
-	inline ServerState GetState()
-	{
-		lock_guard<shared_mutex> lck(m_stateMutex);
-
-		return m_state;
-	}
-	inline bool IsRunning()
-	{
-		return GetState() == ServerState::RUNNING;
-	}
-	void ReconnectWithClientsOn(int port);
+	inline void SetState(ServerState state);
+	inline ServerState GetState();
 
 private:
-	
+	ConnectionInfo RetrieveNextClient();
 };
 
