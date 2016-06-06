@@ -51,6 +51,7 @@ void UserVerifier::Run(ServerState state)
 			{
 				ConnectionInfo ci = move(PopPendingConnection());
 
+				/* Encrypted connection. */
 				if (ci.connection.ssl != nullptr)
 				{
 					ReadFromSSL(&ci);
@@ -65,6 +66,7 @@ void UserVerifier::Run(ServerState state)
 						continue;
 					}
 				}
+				/* Unencrypted connection. */
 				else
 				{
 					ReadFromSocket(&ci);
