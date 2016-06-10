@@ -14,6 +14,11 @@
 #define IMAGE_MESSAGE "{image}"
 #define END_IMAGE_MESSAGE "{/image}"
 
+enum message_t
+{
+	TEXT, IMAGE, INVALID
+};
+
 
 //This class represents the Server. The ServerManager will handle any initial incoming connections
 //and will pass it off to the Server, which lies in its own thread. The Server then will handle
@@ -27,13 +32,13 @@ private:
 	std::vector<ConnectionInfo> m_clientList;
 	std::mutex m_clientListMutex;
 	//The state of the Server.
-	ThreadSafe<ServerState> m_state;
+	ThreadSafe<ServerState> m_state{ ServerState::OFF };
 	//Represents the client being "worked" on
-	int m_client;
-	SQLiteDb m_db;
+	int m_client{ 0 };
+	SQLiteDb m_msgDb;
+
 
 public:
-	//Constructor takes in the unique information regarding the initial connecting client.
 	~Server() {}
 
 	//Add a client to the server.

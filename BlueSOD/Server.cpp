@@ -2,6 +2,7 @@
 #include "Server.h"
 
 using std::move;
+using std::vector;
 
 void Server::AddClient(ConnectionInfo&& client)
 {
@@ -18,11 +19,31 @@ int Server::NumberOfClients()
 void Server::Run(ServerState state)
 {
 	SetState(state);
-	while (state == ServerState::RUNNING)
+	while (GetState() == ServerState::RUNNING)
 	{
-		
+		if (m_clientList.size() != 0)
+		{
+			fd_set read;
+			int numIncoming;
+			ZeroMemory(&read, sizeof(read));
+			for (auto it = m_clientList.begin(); it != m_clientList.end(); it++)
+			{
+				FD_SET(it->connection.socket, &read);
+			}
+			numIncoming = select(&read, nullptr, nullptr);
+			if (numIncoming == SOCKET_ERROR)
+			{
 
-		state = GetState();
+			}
+
+			vector<char[BUFFER_SIZE]> readBuffer{ numIncoming };
+			while (numIncoming != 0)
+			{
+
+				numIncoming--;
+			}
+		}
+
 	}
 }
 
