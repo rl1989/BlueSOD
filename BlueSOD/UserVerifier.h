@@ -1,6 +1,9 @@
 #pragma once
 #include <memory>
 #include <thread>
+#include <list>
+#include <cstring>
+#include <vector>
 #include "TS_Deque.h"
 #include "ServerConnections.h"
 #include "SQLiteDB.h"
@@ -17,12 +20,13 @@
 class UserVerifier
 {
 private:
-	TS_Deque<ConnectionInfo> m_pendingConnections;
-	TS_Deque<ConnectionInfo> m_verifiedConnections;
-	TS_Deque<ConnectionInfo> m_rejectedConnections;
-	TS_Deque<ConnectionInfo> m_invalidRequests;
-	ThreadSafe<ServerState> m_state;
-	SQLiteDb m_db;
+	TS_Deque<ConnectionInfo> m_pendingConnections{};
+	TS_Deque<ConnectionInfo> m_verifiedConnections{};
+	TS_Deque<ConnectionInfo> m_rejectedConnections{};
+	TS_Deque<ConnectionInfo> m_invalidRequests{};
+	ThreadSafe<ServerState> m_state{};
+	SQLiteDb m_db{};
+
 public:
 	UserVerifier(const std::string& userInfoDbLocation, ServerState state = ServerState::OFF)
 		: m_state{ state },
@@ -46,6 +50,7 @@ private:
 	int NumOfPendingConnections();
 	void AddRejectedConnection(ConnectionInfo&& ci);
 	void AddInvalidRequest(ConnectionInfo&& ci);
+	void VerifyUser(ConnectionInfo* ci);
 	bool VerifyLoginAttempt(ConnectionInfo* ci);
 	bool VerifyLoginInformation(ConnectionInfo* ci);
 };

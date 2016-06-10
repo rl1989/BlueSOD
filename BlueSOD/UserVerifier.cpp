@@ -3,6 +3,10 @@
 
 using std::move;
 using std::string;
+using std::list;
+using std::vector;
+
+extern std::shared_mutex wsaMutex;
 
 void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
@@ -47,57 +51,50 @@ void UserVerifier::Run(ServerState state)
 	{
 		if (HasPendingConnections())
 		{
-			while (NumOfPendingConnections() > 0)
+			ConnectionInfo ci = move(PopPendingConnection());
+			if (ci.connection.ssl != nullptr)
 			{
-				ConnectionInfo ci = move(PopPendingConnection());
-
-				/* Encrypted connection. */
-				if (ci.connection.ssl != nullptr)
+				ReadFromSSL(&ci);
+				switch (ci.sslStatus)
 				{
-					ReadFromSSL(&ci);
-					if (ci.sslStatus == SSLStatus::NO_DATA_PRESENT)
-					{
+					case SSLStatus::NO_DATA_PRESENT:
+						/*Place the connection into the back for processing later.*/
 						AddPendingConnection(move(ci));
-						continue;
-					}
-					else if (ci.sslStatus == SSLStatus::SSL_ERROR)
-					{
-						/* Log error and let ci go out of scope in order to shut down the connection. */
-						continue;
-					}
-				}
-				/* Unencrypted connection. */
-				else
-				{
-					ReadFromSocket(&ci);
-					if (ci.connStatus == ConnectionStatus::NO_DATA_PRESENT)
-					{
-						AddPendingConnection(move(ci));
-						continue;
-					}
-					else if (ci.connStatus == ConnectionStatus::CONNECTION_ERROR)
-					{
-						/* Log error and let ci go out of scope in order to shut down the connection. */
-						continue;
-					}
-				}
-
-				if (VerifyLoginAttempt(&ci))
-				{
-					if (VerifyLoginInformation(&ci))
-					{
-						AddVerifiedConnection(move(ci));
-					}
-					else
-					{
-						AddRejectedConnection(move(ci));
-					}
-				}
-				else
-				{
-					AddInvalidRequest(move(ci));
+						break;
+					case SSLStatus::SSL_ERROR:
+						/*Log error and let ci go out of scope to shutdown the connection.*/
+						break;
+					case SSLStatus::SSL_READ:
+						/*Verify if it's a login message and verify the user.*/
+						VerifyUser(&ci);
+						break;
 				}
 			}
+			else if (ci.connection.ssl == nullptr)
+			{
+				ReadFromSocket(&ci);
+				switch (ci.sslStatus)
+				{
+					case ConnectionStatus::NO_DATA_PRESENT:
+						/*Place the connection into the back for processing later.*/
+						AddPendingConnection(move(ci));
+						break;
+					case ConnectionStatus::CONNECTION_ERROR:
+						/*Log error and let ci go out of scope to shutdown the conneciton.*/
+						break;
+					case ConnectionStatus::CONNECTION_READ:
+						/*Verify if it's a login message and verify the user.*/
+						VerifyUser(&ci);
+						break;
+				}
+			}
+			/*
+				NOTE: If you have reached here, it is because:
+				  a) There was an error and ci needs to go out of scope in order to shutdown.
+				  b) The connection reached the verification stage and ci is now in another deque.
+
+				 DO NOT USE ci HERE!!!
+			*/
 		}
 	}
 }
@@ -160,6 +157,25 @@ void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
 	m_invalidRequests.PushBack(ci);
 }
 
+void UserVerifier::VerifyUser(ConnectionInfo* ci)
+{
+	if (VerifyLoginAttempt(ci))
+	{
+		if (VerifyLoginInformation(ci))
+		{
+			AddVerifiedConnection(move(*ci));
+		}
+		else
+		{
+			AddRejectedConnection(move(*ci));
+		}
+	}
+	else
+	{
+		AddInvalidRequest(move(*ci));
+	}
+}
+
 bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
 {
 	string message{ ci->buffer.buffer.buf };
@@ -172,7 +188,7 @@ bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
 	return false;
 }
 
-bool UserVerifier::VerifyLoginInformation(ConnectionInfo * ci)
+bool UserVerifier::VerifyLoginInformation(ConnectionInfo* ci)
 {
 	string msg{ci->buffer.buffer.buf};
 	int delimiter = msg.find_first_of(DELIMITER, 1);
