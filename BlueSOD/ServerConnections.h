@@ -4,6 +4,7 @@
 #include <openssl/err.h>
 #include <memory>
 #include <string>
+#include <shared_mutex>
 #include "LogManager.h"
 
 //The maximum size of a message a client can send/receive at a time.
@@ -99,3 +100,9 @@ ConnectionInfo* WriteToSSL(ConnectionInfo* ci);
 ConnectionInfo* ReadFromSocket(ConnectionInfo* ci);
 
 ConnectionInfo* WriteToSocket(ConnectionInfo* ci);
+
+int select(fd_set* read, fd_set* write, fd_set* except);
+
+std::shared_mutex wsaMutex;
+
+int GetError(SOCKET s);

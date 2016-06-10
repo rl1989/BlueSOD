@@ -188,6 +188,7 @@ void Connection::Close()
 	}
 	if (socket != INVALID_SOCKET)
 	{
+		shutdown(socket, SD_SEND);
 		closesocket(socket);
 	}
 }
@@ -308,4 +309,20 @@ ConnectionInfo* WriteToSocket(ConnectionInfo* ci)
 	ci->connStatus = ConnectionStatus::CONNECTION_SENT;
 
 	return ci;
+}
+
+int select(fd_set * read, fd_set * write, fd_set * except)
+{
+	timeval timeout{ 0,100 };
+	return select(0, read, write, except, &timeout);
+}
+
+int GetError(SOCKET s)
+{
+	int val;
+	int len = sizeof(val);
+
+	getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&val, &len);
+
+	return val;
 }
