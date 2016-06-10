@@ -31,4 +31,8 @@ public:
 	void PopFront();
 	int Size();
 	bool Empty();
+
+	std::deque<T>::const_reference operator[](int n);
+	std::deque<T>::const_iterator begin();
+	std::deque<T>::const_iterator end();
 };
