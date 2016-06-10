@@ -19,7 +19,15 @@ public:
 	ThreadSafe(const T& o);
 	ThreadSafe(T& o);
 	ThreadSafe(T&& o);
+	ThreadSafe();
 	~ThreadSafe();
+
+	ThreadSafe<T>& operator=(const T& o);
+	ThreadSafe<T>& operator=(T&& o);
+	ThreadSafe<T>& operator+(const T& o);
+	ThreadSafe<T>& operator+=(const T& o);
+	ThreadSafe<T>& operator++();
+	operator T() const;
 
 	void ChangeObject(const T& o);
 	void ChangeObject(T& o);
