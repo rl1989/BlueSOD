@@ -132,6 +132,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ClientInfo.h" />
+    <ClInclude Include="ClientInfoList.h" />
     <ClInclude Include="LogManager.h" />
     <ClInclude Include="ServerConnections.h" />
     <ClInclude Include="Server.h" />
@@ -144,6 +146,8 @@
     <ClInclude Include="UserVerifier.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ClientInfo.cpp" />
+    <ClCompile Include="ClientInfoList.cpp" />
     <ClCompile Include="LogManager.cpp" />
     <ClCompile Include="ServerConcurrency.cpp" />
     <ClCompile Include="ServerConnections.cpp" />
