@@ -103,6 +103,4 @@ ConnectionInfo* WriteToSocket(ConnectionInfo* ci);
 
 int select(fd_set* read, fd_set* write, fd_set* except);
 
-std::shared_mutex wsaMutex;
-
 int GetError(SOCKET s);

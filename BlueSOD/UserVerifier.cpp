@@ -6,8 +6,6 @@ using std::string;
 using std::list;
 using std::vector;
 
-extern std::shared_mutex wsaMutex;
-
 void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
 	m_pendingConnections.PushBack(move(ci));
