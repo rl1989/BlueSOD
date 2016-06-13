@@ -1,1 +1,6 @@
-Time to start working on Server!
+Working on Server, ClientInfo, ClientInfoList.
+
+FOR LATER:
+Determine how to handle connection time outs. i.e. How long a connection should be idle before the user is timed out.
+
+Separate ServerConnections into different files.
