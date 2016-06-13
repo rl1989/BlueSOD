@@ -1,13 +1,11 @@
 #pragma once
-#include <WinSock2.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <iostream>
-#include <vector>
 #include <mutex>
+#include <string>
+#include <list>
 #include "ServerConnections.h"
 #include "ServerConcurrency.h"
 #include "SQLiteDB.h"
+#include "ClientInfo.h"
 
 #define BEGIN_MESSAGE "{beg}"
 #define END_MESSAGE "{end}"
@@ -29,23 +27,18 @@ class Server
 {
 private:
 	//List of clients currently connected.
-	std::vector<ConnectionInfo> m_clientList;
-	std::mutex m_clientListMutex;
+	ClientInfo m_clientList;
 	//The state of the Server.
 	ThreadSafe<ServerState> m_state{ ServerState::OFF };
-	//Represents the client being "worked" on
-	int m_client{ 0 };
-	SQLiteDb m_msgDb;
+
+	SQLiteDb m_msgDb{};
 
 
 public:
+	Server();
 	~Server() {}
-
-	//Add a client to the server.
-	void AddClient(ConnectionInfo&& client);
 	
-	//Returns the number of clients currently connected.
-	int NumberOfClients();
+	void AddClient(const ConnectionInfo& ci, const std::string& username);
 	//Initializes the server. This is where the code for handling communication will be.
 	//TO DO: Implement.
 	void Run(ServerState state = ServerState::RUNNING);
@@ -54,6 +47,5 @@ public:
 	inline ServerState GetState();
 
 private:
-	ConnectionInfo RetrieveNextClient();
 };
 
