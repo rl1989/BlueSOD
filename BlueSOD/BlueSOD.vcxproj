@@ -134,7 +134,9 @@
   <ItemGroup>
     <ClInclude Include="ClientInfo.h" />
     <ClInclude Include="ClientInfoList.h" />
+    <ClInclude Include="Flags.h" />
     <ClInclude Include="LogManager.h" />
+    <ClInclude Include="Messages.h" />
     <ClInclude Include="ServerConnections.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="ServerConcurrency.h" />
