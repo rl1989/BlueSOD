@@ -1,6 +1,18 @@
-Working on Server, ClientInfo, ClientInfoList.
+Working on Server.
+
+Need to make UserVerifier use ClientInfo objects for the outgoing deques (i.e. m_verifiedConnections).
+
+
 
 FOR LATER:
 Determine how to handle connection time outs. i.e. How long a connection should be idle before the user is timed out.
 
 Separate ServerConnections into different files.
+
+Optimize ClientInfoList add, remove and search features.
+	-Between vector and list
+		*List seems to be more efficient for insertions, but may be slower for searches. Need to figure out which one is more
+		 important.
+		*It should not be necessary to ever shrink the vector to conserve memory. Not much memory is used by the vector.
+		 This will help speed up any future additions to the vector as well.
+	-Sorted insert in order to use binary search
