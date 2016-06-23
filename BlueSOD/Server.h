@@ -5,16 +5,20 @@
 #include "ServerConnections.h"
 #include "ServerConcurrency.h"
 #include "SQLiteDB.h"
-#include "ClientInfo.h"
+#include "ClientInfoList.h"
+#include "Messages.h"
 
 #define BEGIN_MESSAGE "{beg}"
 #define END_MESSAGE "{end}"
 #define IMAGE_MESSAGE "{image}"
 #define END_IMAGE_MESSAGE "{/image}"
 
-enum message_t
+#define MSG_DB_NAME "MessageDatabase"
+#define TABLE_NAME "Conversations"
+
+enum class message_t
 {
-	TEXT, IMAGE, INVALID
+	MESSAGE, REQUEST_CONVO_LISTS, REQUEST_CONVO_MSGS, LOGIN, LOGOUT, INVALID
 };
 
 
@@ -27,25 +31,35 @@ class Server
 {
 private:
 	//List of clients currently connected.
-	ClientInfo m_clientList;
+	ClientInfoList m_newClientList{};
 	//The state of the Server.
 	ThreadSafe<ServerState> m_state{ ServerState::OFF };
+	SQLiteDb* m_messageDb;
+	std::mutex m_msgDbMutex;
+	std::mutex m_runMetx;
 
-	SQLiteDb m_msgDb{};
+	/*static SQLiteDb* m_msgDb;
+	static int NUMBER_OF_SERVERS;
+	static std::shared_mutex DB_MUTEX;*/
 
 
 public:
-	Server();
-	~Server() {}
+	Server() = default;
+	~Server() = default;
 	
-	void AddClient(const ConnectionInfo& ci, const std::string& username);
+	bool AddClient(NewConnectionInfo& ci, const std::string& username);
 	//Initializes the server. This is where the code for handling communication will be.
 	//TO DO: Implement.
 	void Run(ServerState state = ServerState::RUNNING);
 	//Sets the state of the Server.
 	inline void SetState(ServerState state);
 	inline ServerState GetState();
+	int NumberOfClients();
 
 private:
+	void DisconnectClients();
+	/*Not finished.*/
+	void BroadCastMessage(const std::string& msg);
+	message_t ParseMessage(std::string& msg);
 };
 

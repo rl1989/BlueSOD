@@ -5,7 +5,9 @@
 #include <memory>
 #include <string>
 #include <shared_mutex>
+#include <chrono>
 #include "LogManager.h"
+#include "Flags.h"
 
 //The maximum size of a message a client can send/receive at a time.
 #define BUFFER_SIZE 1024
@@ -16,91 +18,56 @@ enum ServerState
 	OFF, RUNNING, NOT_ACCEPTING_CONNECTIONS, RESET, START_UP
 };
 
-enum ConnectionStatus
+enum connect_s
 {
-	CONNECTION_OK,
-	CONNECTION_ACCEPTED,
-	CONNECTION_READ,
-	CONNECTION_SENT,
-	CONNECTION_ERROR,
-	NO_DATA_PRESENT,
-	CONNECTION_NOT_INITIATED
+	OK, ERR, NOT_FULLY_SENT, NOT_INITIATED, NOT_SENT, SHUTDOWN, SENT, RECEIVED,
+	WANT_READ, WANT_WRITE, NO_DATA_PRESENT
 };
 
-enum SSLStatus
+//#else
+
+#define SOCKET_OK 0
+
+class NewConnectionInfo
 {
-	SSL_OK,
-	SSL_ACCEPTED,
-	SSL_SENT,
-	SSL_READ,
-	SSL_ERROR,
-	NO_DATA_PRESENT,
-	SSL_NOT_INITIATED
+private:
+	SOCKET m_socket{ INVALID_SOCKET };
+	SSL* m_ssl{ nullptr };
+	int m_sslStatus{SSL_ERROR_NONE};
+	int m_socketStatus{SOCKET_OK};
+	int m_bytesSent{ 0 };
+
+public:
+	NewConnectionInfo() = default;
+	explicit NewConnectionInfo(SOCKET socket);
+	NewConnectionInfo(SOCKET socket, SSL* ssl);
+	NewConnectionInfo(NewConnectionInfo&& move);
+	NewConnectionInfo& operator=(NewConnectionInfo&& move);
+	~NewConnectionInfo();
+	
+	connect_s Send(const std::string& msg);
+	connect_s Receive(std::string& buffer, bool file = false, int expectedLength = 0);
+	void Shutdown(int how = SD_BOTH);
+	bool IsValid();
+	connect_s Accept(SOCKET listener, SSL_CTX* ssl_ctx);
+
+	SOCKET GetSocket();
+	SSL* GetSSL();
+	int GetSocketStatus();
+	int GetSSLStatus();
+	int BytesSent();
+
+	void SetSocket(SOCKET socket);
+	void SetSSL(SSL* ssl);
+
+private:
+	connect_s SendSSL(const std::string& msg);
+	connect_s SendSocket(const std::string& msg);
+	connect_s ReceiveSSL(std::string& buffer, bool file = false, int expectedLength = 0);
+	connect_s ReceiveSocket(std::string& buffer, bool file = false, int expectedLength = 0);
+	int SelectForRead();
+	int SelectForWrite();
+
+	int GetSocketError();
+	int GetSocketError(SOCKET socket);
 };
-
-struct Buffer
-{
-	WSABUF buffer;
-	DWORD bytesSent;
-	DWORD bytesRecv;
-
-	Buffer();
-	Buffer(const Buffer& ref);
-	Buffer& operator=(const Buffer& ref);
-	Buffer(Buffer&& move);
-	Buffer& operator=(Buffer&& move);
-	~Buffer();
-};
-
-struct Connection
-{
-	SOCKET socket;
-	SSL* ssl;
-	ULONG address;
-
-	bool operator==(const Connection& ref);
-	bool operator==(Connection& ref);
-
-	void Close();
-};
-
-struct ConnectionInfo
-{
-	Buffer buffer;
-	Connection connection;
-	bool verified;
-	ConnectionStatus connStatus;
-	SSLStatus sslStatus;
-
-	ConnectionInfo();
-	ConnectionInfo(const Connection& ref);
-	ConnectionInfo(Connection&& move);
-	ConnectionInfo& operator=(const Connection& ref);
-	ConnectionInfo& operator=(Connection&& move);
-	ConnectionInfo(const ConnectionInfo& ref);
-	ConnectionInfo(ConnectionInfo&& move);
-	ConnectionInfo& operator=(const ConnectionInfo& ref);
-	ConnectionInfo& operator=(ConnectionInfo&& move);
-	~ConnectionInfo();
-
-	bool operator==(const ConnectionInfo& ref);
-	bool operator==(ConnectionInfo& ref);
-};
-
-/*  Read from the SSL connection. The message is stored in buffer which must be of size BUFFER_SIZE.
-
-	The status of the connection is stored in ci.sslStatus. */
-ConnectionInfo* ReadFromSSL(ConnectionInfo* ci);
-
-/*  Send a message that is stored in buffer to an SSL connection.
-
-	The status of the connection is stored in ci.sslStatus. */
-ConnectionInfo* WriteToSSL(ConnectionInfo* ci);
-
-ConnectionInfo* ReadFromSocket(ConnectionInfo* ci);
-
-ConnectionInfo* WriteToSocket(ConnectionInfo* ci);
-
-int select(fd_set* read, fd_set* write, fd_set* except);
-
-int GetError(SOCKET s);

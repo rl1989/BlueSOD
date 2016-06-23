@@ -115,63 +115,16 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-ConnectionInfo ServerManager::AcceptIncomingConnection()
+NewConnectionInfo ServerManager::AcceptIncomingNewConnection()
 {
-	ConnectionInfo ci{};
+	NewConnectionInfo ci{};
 
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
 	{
-		ci.connStatus = ConnectionStatus::CONNECTION_ERROR;
 		return ci;
 	}
 
-	struct sockaddr_in addr;
-	int len = sizeof(addr);
-	SOCKET socket = accept(m_listenerSocket, (sockaddr*)&addr, &len);
-
-	if (socket == INVALID_SOCKET)
-	{
-		if (WSAGetLastError() == WSAEWOULDBLOCK)
-		{
-			ci.connStatus = ConnectionStatus::NO_DATA_PRESENT;
-			return ci;
-		}
-
-		/* Log error. */
-		string fName = string(ERROR_LOGS_LOCATION);
-		fName += CONNECTION_ERROR_LOG;
-		LogManager::LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
-
-		ci.connStatus = ConnectionStatus::CONNECTION_ERROR;
-		return ci;
-	}
-	else
-	{
-		ci.connStatus = ConnectionStatus::CONNECTION_ACCEPTED;
-	}
-
-	SSL* ssl = nullptr;
-	if (m_sslContext)
-	{
-		/* Create the SSL object and attempt to accept an SSL connection. */
-		ssl = SSL_new(m_sslContext);
-		SSL_set_fd(ssl, socket);
-		if (SSL_accept(ssl) <= 0)
-		{
-			LogManager::LogSSLError();
-			SSL_free(ssl);
-			ssl = nullptr;
-			ci.sslStatus = SSLStatus::SSL_ERROR;
-		}
-		else
-		{
-			ci.sslStatus = SSLStatus::SSL_ACCEPTED;
-		}
-	}
-
-	ci.connection.socket = socket;
-	ci.connection.address = addr.sin_addr.S_un.S_addr;
-	ci.connection.ssl = ssl;
+	ci.Accept(m_listenerSocket, m_sslContext);
 
 	return ci;
 }
@@ -202,25 +155,25 @@ bool ServerManager::Run(ServerState state)
 		switch (curState)
 		{
 			case ServerState::START_UP:
-			{
-				int port = GetPortNumber();
-				if (!OpenForConnections(port))
 				{
-					string fName, msg;
-					fName = ERROR_LOGS_LOCATION;
-					fName += CONNECTION_ERROR_LOG;
-					msg = time(nullptr);
-					msg += " Could not open for connection on port ";
-					msg += port;
-					LogManager::LogError(fName, msg);
+					int port = GetPortNumber();
+					if (!OpenForConnections(port))
+					{
+						string fName, msg;
+						fName = ERROR_LOGS_LOCATION;
+						fName += CONNECTION_ERROR_LOG;
+						msg = time(nullptr);
+						msg += " Could not open for connection on port ";
+						msg += port;
+						LogManager::LogError(fName, msg);
 
-					return false;
+						return false;
+					}
+					else
+					{
+						SetState(ServerState::RUNNING);
+					}
 				}
-				else
-				{
-					SetState(ServerState::RUNNING);
-				}
-			}
 				break;
 
 			/*A new port was requested to be used by the administrator. Close the current socket and
@@ -232,15 +185,10 @@ bool ServerManager::Run(ServerState state)
 			
 			/*Connect with any incoming clients.*/
 			case ServerState::RUNNING:
-				ConnectionInfo ci = move(AcceptIncomingConnection());
-				ConnectionStatus connStatus = ci.connStatus;
-				if (connStatus == ConnectionStatus::CONNECTION_ERROR)
-				{
-					if (connStatus == ConnectionStatus::NO_DATA_PRESENT)
-					{
-						break;
-					}
+				NewConnectionInfo ci = move(AcceptIncomingNewConnection());
 
+				if ( !(ci.IsValid()) )
+				{
 					string fileName = string(ERROR_LOGS_LOCATION);
 					fileName += ERROR_LOG;
 					string message;
@@ -255,6 +203,7 @@ bool ServerManager::Run(ServerState state)
 				else
 				{
 					/* Send Connection off to be verified. */
+					//m_userVerifier.AddPendingConnection(move(ci));
 					m_userVerifier.AddPendingConnection(move(ci));
 				}
 
@@ -262,30 +211,30 @@ bool ServerManager::Run(ServerState state)
 				{
 					for (int i = 0; i < m_userVerifier.NumVerifiedConnections(); i++)
 					{
-						ConnectionInfo ci = move(m_userVerifier.PopVerifiedConnection());
-						string msg = VERIFIED_MESSAGE;
-						/* Send a verified message. */
-						Send(&ci, msg);
-						/* Send verified connection to m_server. */
-						m_server.AddClient(move(ci));
+						//NewConnectionInfo ci = move(m_userVerifier.PopVerifiedConnection());
+						//string msg = VERIFIED_MESSAGE;
+						///* Send a verified message. */
+						//ci.Send(msg);
+						///* Send verified connection to m_server. */
+						////m_server.AddClient(move(ci));
 					}
 				}
 				if (m_userVerifier.HasRejectedConnections())
 				{
 					for (int i = 0; i < m_userVerifier.NumRejectedConnections(); i++)
 					{
-						ConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
-						string msg = REJECTION_MESSAGE;
-						/* Send a rejection message. */
-						Send(&ci, msg);
-						/* ConnectionInfo's destructor calls Close() on ci.connection, so no need to 
-						   explicitly call it. */
+						//NewConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
+						//string msg = REJECTION_MESSAGE;
+						///* Send a rejection message. */
+						//ci.Send(msg);
+						///* NewConnectionInfo's destructor calls Close() on ci.connection, so no need to 
+						//   explicitly call it. */
 					}
 				}
 				break;
 		}
 
-		m_server.SetState(curState);
+		//m_server.SetState(curState);
 		m_userVerifier.SetState(curState);
 
 		curState = GetState();
@@ -299,7 +248,7 @@ bool ServerManager::Run(ServerState state)
 inline void ServerManager::Shutdown()
 {
 	SetState(ServerState::OFF);
-	m_server.SetState(ServerState::OFF);
+	//m_server.SetState(ServerState::OFF);
 	m_userVerifier.SetState(ServerState::OFF);
 
 	if (m_serverThread.joinable())
@@ -497,18 +446,6 @@ void ServerManager::CloseConnections()
 {
 	if (m_listenerSocket)
 		closesocket(m_listenerSocket);
-}
-
-void ServerManager::Send(ConnectionInfo* ci, const std::string& msg)
-{
-	strcpy(ci->buffer.buffer.buf, msg.c_str());
-	ci->buffer.buffer.len = strlen(msg.c_str());
-	ci->buffer.bytesSent = 0;
-
-	if (ci->connection.ssl)
-		WriteToSSL(ci);
-	else
-		WriteToSocket(ci);
 }
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)

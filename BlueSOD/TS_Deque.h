@@ -32,7 +32,7 @@ public:
 	int Size();
 	bool Empty();
 
-	std::deque<T>::const_reference operator[](int n);
-	std::deque<T>::const_iterator begin();
-	std::deque<T>::const_iterator end();
+	T& operator[](int n);
+	typename std::deque<T>::const_iterator begin();
+	typename std::deque<T>::const_iterator end();
 };

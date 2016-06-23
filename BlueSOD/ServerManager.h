@@ -64,7 +64,7 @@ private:
 	ThreadSafe<ServerState> m_tsState;
 	//The Server. This is where connections will be passed to once they are initialized and the
 	//user is logged in.
-	Server m_server;
+	//Server m_server;
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
@@ -89,11 +89,11 @@ public:
 		m_bWSA{ false },
 		m_bOpenSSL{ false },
 		m_tsState{ ServerState::OFF },
-		m_server{},
+		//m_server{},
 		m_runMutex{},
 		m_userVerifier{ dbName }
 	{
-		m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
+		//m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
 		m_uvThread = std::thread(StartUserVerifier, &m_userVerifier, ServerState::OFF);
 	}
 	~ServerManager();
@@ -151,7 +151,7 @@ private:
 			NOT_OK - An error occurred and ci is not valid.
 			NO_CONNECTION_PRESENT - There was no connection present.
 	*/
-	ConnectionInfo AcceptIncomingConnection();
+	NewConnectionInfo AcceptIncomingNewConnection();
 
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).
@@ -201,7 +201,6 @@ private:
 	/*
 		Send a message to the client.
 	*/
-	void Send(ConnectionInfo* ci, const std::string& msg);
 };
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);

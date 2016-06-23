@@ -101,7 +101,7 @@ bool TS_Deque<T>::Empty()
 }
 
 template<typename T>
-std::deque<T>::const_reference TS_Deque<T>::operator[](int n)
+T& TS_Deque<T>::operator[](int n)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -109,7 +109,7 @@ std::deque<T>::const_reference TS_Deque<T>::operator[](int n)
 }
 
 template<typename T>
-std::deque<T>::const_iterator TS_Deque<T>::begin()
+typename std::deque<T>::const_iterator TS_Deque<T>::begin()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -117,7 +117,7 @@ std::deque<T>::const_iterator TS_Deque<T>::begin()
 }
 
 template<typename T>
-std::deque<T>::const_iterator TS_Deque<T>::end()
+typename std::deque<T>::const_iterator TS_Deque<T>::end()
 {
 	lock_guard<mutex> lck(m_mutex);
 

@@ -6,14 +6,14 @@ using std::string;
 using std::list;
 using std::vector;
 
-void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
+void UserVerifier::AddPendingConnection(NewConnectionInfo&& ci)
 {
-	m_pendingConnections.PushBack(move(ci));
+	m_pendingConnections.PushBack(ci);
 }
 
 bool UserVerifier::HasVerifiedConnections()
 {
-	return m_verifiedConnections.Empty();
+	return !m_verifiedConnections.Empty();
 }
 
 int UserVerifier::NumVerifiedConnections()
@@ -31,11 +31,10 @@ int UserVerifier::NumRejectedConnections()
 	return m_rejectedConnections.Size();
 }
 
-ConnectionInfo UserVerifier::PopRejectedConnection()
+NewConnectionInfo UserVerifier::PopRejectedConnection()
 {
-	ConnectionInfo ci{};
+	NewConnectionInfo ci = move(m_rejectedConnections.Front());
 
-	ci = move(m_rejectedConnections.Front());
 	m_rejectedConnections.PopFront();
 
 	return ci;
@@ -49,50 +48,40 @@ void UserVerifier::Run(ServerState state)
 	{
 		if (HasPendingConnections())
 		{
-			ConnectionInfo ci = move(PopPendingConnection());
-			if (ci.connection.ssl != nullptr)
+			NewConnectionInfo ci = move(PopPendingConnection());
+			if (ci.IsValid())
 			{
-				ReadFromSSL(&ci);
-				switch (ci.sslStatus)
+				string msg;
+				switch (ci.Receive(msg))
 				{
-					case SSLStatus::NO_DATA_PRESENT:
-						/*Place the connection into the back for processing later.*/
+					case connect_s::NO_DATA_PRESENT:
+					case connect_s::WANT_READ:
 						AddPendingConnection(move(ci));
 						break;
-					case SSLStatus::SSL_ERROR:
+					case connect_s::ERR:
 						/*Log error and let ci go out of scope to shutdown the connection.*/
 						break;
-					case SSLStatus::SSL_READ:
-						/*Verify if it's a login message and verify the user.*/
-						VerifyUser(&ci);
-						break;
-				}
-			}
-			else if (ci.connection.ssl == nullptr)
-			{
-				ReadFromSocket(&ci);
-				switch (ci.sslStatus)
-				{
-					case ConnectionStatus::NO_DATA_PRESENT:
-						/*Place the connection into the back for processing later.*/
-						AddPendingConnection(move(ci));
-						break;
-					case ConnectionStatus::CONNECTION_ERROR:
-						/*Log error and let ci go out of scope to shutdown the conneciton.*/
-						break;
-					case ConnectionStatus::CONNECTION_READ:
-						/*Verify if it's a login message and verify the user.*/
-						VerifyUser(&ci);
-						break;
-				}
-			}
-			/*
-				NOTE: If you have reached here, it is because:
-				  a) There was an error and ci needs to go out of scope in order to shutdown.
-				  b) The connection reached the verification stage and ci is now in another deque.
+					case connect_s::RECEIVED:
+						if (VerifyLoginAttempt(msg))
+						{
+							if (VerifyLoginInformation(msg))
+							{
+								//AddVerifiedConnection(move(ci));
+							}
+							else
+							{
+								//AddRejectedConnection(move(ci));
+							}
 
-				 DO NOT USE ci HERE!!!
-			*/
+						}
+						else
+						{
+							AddInvalidConnection(move(ci));
+						}
+						break;
+				}
+			}
+			/*DO NOT USE ci HERE!!!*/
 		}
 	}
 }
@@ -107,30 +96,25 @@ ServerState UserVerifier::GetState()
 	return m_state.RetrieveObject();
 }
 
-ConnectionInfo UserVerifier::PopVerifiedConnection()
+NewConnectionInfo UserVerifier::PopVerifiedConnection()
 {
-	ConnectionInfo ci{};
+	NewConnectionInfo ci = move(m_verifiedConnections.Front());
 
-	ci = move(m_verifiedConnections.Front());
 	m_verifiedConnections.PopFront();
 
 	return ci;
 }
 
-ConnectionInfo UserVerifier::PopPendingConnection()
+NewConnectionInfo UserVerifier::PopPendingConnection()
 {
-	ConnectionInfo ci{};
+	NewConnectionInfo ci = move(m_pendingConnections.Front());
 
-	if (m_pendingConnections.Empty())
-		return move(ci);
-
-	ci = move(m_pendingConnections.Front());
 	m_pendingConnections.PopFront();
 
 	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(ConnectionInfo&& ci)
+void UserVerifier::AddVerifiedConnection(NewConnectionInfo&& ci)
 {
 	m_verifiedConnections.PushBack(ci);
 }
@@ -145,50 +129,22 @@ int UserVerifier::NumOfPendingConnections()
 	return m_pendingConnections.Size();
 }
 
-void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
+void UserVerifier::AddRejectedConnection(NewConnectionInfo&& ci)
 {
 	m_rejectedConnections.PushBack(ci);
 }
-
-void UserVerifier::AddInvalidRequest(ConnectionInfo&& ci)
+void UserVerifier::AddInvalidConnection(NewConnectionInfo && ci)
 {
-	m_invalidRequests.PushBack(ci);
+	m_invalidConnections.PushBack(ci);
 }
 
-void UserVerifier::VerifyUser(ConnectionInfo* ci)
+bool UserVerifier::VerifyLoginAttempt(const string& msg)
 {
-	if (VerifyLoginAttempt(ci))
-	{
-		if (VerifyLoginInformation(ci))
-		{
-			AddVerifiedConnection(move(*ci));
-		}
-		else
-		{
-			AddRejectedConnection(move(*ci));
-		}
-	}
-	else
-	{
-		AddInvalidRequest(move(*ci));
-	}
+	return msg.compare(LOGIN_MSG) == 0;
 }
 
-bool UserVerifier::VerifyLoginAttempt(ConnectionInfo* ci)
+bool UserVerifier::VerifyLoginInformation(const string& msg)
 {
-	string message{ ci->buffer.buffer.buf };
-	
-	if (message.substr(0, 1) == LOGIN_MSG)
-	{
-		return true;
-	}
-
-	return false;
-}
-
-bool UserVerifier::VerifyLoginInformation(ConnectionInfo* ci)
-{
-	string msg{ci->buffer.buffer.buf};
 	int delimiter = msg.find_first_of(DELIMITER, 1);
 	string sqlStatement{ "SELECT " };
 	sqlStatement += USERNAME_COL;
