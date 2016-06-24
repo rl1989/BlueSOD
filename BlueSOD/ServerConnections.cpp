@@ -3,17 +3,17 @@
 using std::move;
 using std::chrono::steady_clock;
 
-NewConnectionInfo::NewConnectionInfo(SOCKET socket)
+ConnectionInfo::ConnectionInfo(SOCKET socket)
 	: m_ssl{nullptr},
 	m_socket{socket}
 {}
 
-NewConnectionInfo::NewConnectionInfo(SOCKET socket, SSL* ssl)
+ConnectionInfo::ConnectionInfo(SOCKET socket, SSL* ssl)
 	: m_socket{socket},
 	m_ssl{ssl}
 {}
 
-NewConnectionInfo::NewConnectionInfo(NewConnectionInfo&& move)
+ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
 	: m_socket{move.GetSocket()},
 	m_ssl{move.GetSSL()},
 	m_socketStatus{move.GetSocketStatus()},
@@ -24,7 +24,7 @@ NewConnectionInfo::NewConnectionInfo(NewConnectionInfo&& move)
 	move.SetSSL(nullptr);
 }
 
-NewConnectionInfo& NewConnectionInfo::operator=(NewConnectionInfo&& move)
+ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 {
 	m_socket = move.GetSocket();
 	m_ssl = move.GetSSL();
@@ -38,37 +38,37 @@ NewConnectionInfo& NewConnectionInfo::operator=(NewConnectionInfo&& move)
 	return *this;
 }
 
-NewConnectionInfo::~NewConnectionInfo()
+ConnectionInfo::~ConnectionInfo()
 {
 	Shutdown();
 }
 
-int NewConnectionInfo::GetSocketStatus()
+int ConnectionInfo::GetSocketStatus()
 {
 	return m_socketStatus;
 }
 
-int NewConnectionInfo::GetSSLStatus()
+int ConnectionInfo::GetSSLStatus()
 {
 	return m_sslStatus;
 }
 
-int NewConnectionInfo::BytesSent()
+int ConnectionInfo::BytesSent()
 {
 	return m_bytesSent;
 }
 
-void NewConnectionInfo::SetSocket(SOCKET socket)
+void ConnectionInfo::SetSocket(SOCKET socket)
 {
 	m_socket = socket;
 }
 
-void NewConnectionInfo::SetSSL(SSL* ssl)
+void ConnectionInfo::SetSSL(SSL* ssl)
 {
 	m_ssl = ssl;
 }
 
-connect_s NewConnectionInfo::Send(const std::string& msg)
+ConnectionState ConnectionInfo::Send(const std::string& msg)
 {
 	if (m_ssl != nullptr)
 	{
@@ -80,11 +80,11 @@ connect_s NewConnectionInfo::Send(const std::string& msg)
 	}
 	else
 	{
-		return connect_s::NOT_INITIATED;
+		return ConnectionState::NOT_INITIATED;
 	}
 }
 
-connect_s NewConnectionInfo::Receive(std::string& buffer, bool file, int expectedLength)
+ConnectionState ConnectionInfo::Receive(std::string& buffer, bool file, int expectedLength)
 {
 	if (m_ssl != nullptr)
 	{
@@ -96,11 +96,11 @@ connect_s NewConnectionInfo::Receive(std::string& buffer, bool file, int expecte
 	}
 	else
 	{
-		return connect_s::NOT_INITIATED;
+		return ConnectionState::NOT_INITIATED;
 	}
 }
 
-void NewConnectionInfo::Shutdown(int how)
+void ConnectionInfo::Shutdown(int how)
 {
 	if (m_ssl != nullptr)
 	{
@@ -118,12 +118,12 @@ void NewConnectionInfo::Shutdown(int how)
 	}
 }
 
-bool NewConnectionInfo::IsValid()
+bool ConnectionInfo::IsValid()
 {
 	return m_ssl != nullptr || m_socket != INVALID_SOCKET;
 }
 
-connect_s NewConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
+ConnectionState ConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 {
 	struct sockaddr_in addr;
 	int len = sizeof(addr);
@@ -135,7 +135,7 @@ connect_s NewConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 		m_socketStatus = GetSocketError(m_socket);
 		if (m_socketStatus == WSAEWOULDBLOCK)
 		{
-			return connect_s::NO_DATA_PRESENT;
+			return ConnectionState::NO_DATA_PRESENT;
 		}
 
 		/* Log error. */
@@ -143,7 +143,7 @@ connect_s NewConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 		fName += CONNECTION_ERROR_LOG;
 		LogManager::LogConnection(fName, time(nullptr), addr.sin_addr.S_un.S_addr);
 
-		return connect_s::ERR;
+		return ConnectionState::ERR;
 	}
 	else
 	{
@@ -164,7 +164,7 @@ connect_s NewConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 			SSL_free(m_ssl);
 			m_ssl = nullptr;
 
-			return connect_s::ERR;
+			return ConnectionState::ERR;
 		}
 		else
 		{
@@ -172,22 +172,22 @@ connect_s NewConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 		}
 	}
 
-	return connect_s::OK;
+	return ConnectionState::OK;
 }
 
-SOCKET NewConnectionInfo::GetSocket()
+SOCKET ConnectionInfo::GetSocket()
 {
 	return m_socket;
 }
 
-SSL* NewConnectionInfo::GetSSL()
+SSL* ConnectionInfo::GetSSL()
 {
 	return m_ssl;
 }
 
-connect_s NewConnectionInfo::SendSSL(const std::string& msg)
+ConnectionState ConnectionInfo::SendSSL(const std::string& msg)
 {
-	connect_s ret = connect_s::NOT_SENT;
+	ConnectionState ret = ConnectionState::NOT_SENT;
 	m_bytesSent = 0;
 	m_sslStatus = SSL_ERROR_NONE;
 
@@ -203,7 +203,7 @@ connect_s NewConnectionInfo::SendSSL(const std::string& msg)
 				m_sslStatus = SSL_get_error(m_ssl, write);
 				m_bytesSent = 0;
 				Shutdown();
-				ret = connect_s::SHUTDOWN;
+				ret = ConnectionState::SHUTDOWN;
 			}
 			else if (write < 0)
 			{
@@ -213,10 +213,10 @@ connect_s NewConnectionInfo::SendSSL(const std::string& msg)
 				{
 					case SSL_ERROR_WANT_READ:
 					case SSL_ERROR_WANT_WRITE:
-						ret = connect_s::WANT_WRITE;
+						ret = ConnectionState::WANT_WRITE;
 						break;
 					default:
-						ret = connect_s::ERR;
+						ret = ConnectionState::ERR;
 						break;
 				}
 			}
@@ -224,23 +224,23 @@ connect_s NewConnectionInfo::SendSSL(const std::string& msg)
 			{
 				m_sslStatus = SSL_ERROR_NONE;
 				m_bytesSent = write;
-				ret = connect_s::NOT_FULLY_SENT;
+				ret = ConnectionState::NOT_FULLY_SENT;
 			}
 		}
 		else
 		{
 			m_sslStatus = SSL_ERROR_NONE;
 			m_bytesSent = write;
-			ret = connect_s::SENT;
+			ret = ConnectionState::SENT;
 		}
 	}
 
 	return ret;
 }
 
-connect_s NewConnectionInfo::SendSocket(const std::string& msg)
+ConnectionState ConnectionInfo::SendSocket(const std::string& msg)
 {
-	connect_s ret = connect_s::NOT_SENT;
+	ConnectionState ret = ConnectionState::NOT_SENT;
 	m_bytesSent = 0;
 	m_socketStatus = SOCKET_OK;
 
@@ -252,26 +252,26 @@ connect_s NewConnectionInfo::SendSocket(const std::string& msg)
 		{
 			m_socketStatus = SOCKET_OK;
 			m_bytesSent = write;
-			ret = connect_s::SENT;
+			ret = ConnectionState::SENT;
 		}
 		else if (write == SOCKET_ERROR)
 		{
 			m_socketStatus = GetSocketError();
 			m_bytesSent = 0;
-			ret = connect_s::ERR;
+			ret = ConnectionState::ERR;
 		}
 		else
 		{
 			m_socketStatus = SOCKET_OK;
 			m_bytesSent = write;
-			ret = connect_s::NOT_FULLY_SENT;
+			ret = ConnectionState::NOT_FULLY_SENT;
 		}
 	}
 
 	return ret;
 }
 
-connect_s NewConnectionInfo::ReceiveSSL(std::string& buffer, bool file, int expectedLength)
+ConnectionState ConnectionInfo::ReceiveSSL(std::string& buffer, bool file, int expectedLength)
 {
 	int bytes = SSL_pending(m_ssl);
 	if (bytes > 0)
@@ -287,12 +287,12 @@ connect_s NewConnectionInfo::ReceiveSSL(std::string& buffer, bool file, int expe
 			{
 				case SSL_ERROR_WANT_READ:
 				case SSL_ERROR_WANT_WRITE:
-					return connect_s::WANT_READ;
+					return ConnectionState::WANT_READ;
 				case SSL_ERROR_ZERO_RETURN:
 					Shutdown();
-					return connect_s::SHUTDOWN;
+					return ConnectionState::SHUTDOWN;
 				default:
-					return connect_s::ERR;
+					return ConnectionState::ERR;
 
 			}
 		}
@@ -301,17 +301,17 @@ connect_s NewConnectionInfo::ReceiveSSL(std::string& buffer, bool file, int expe
 			buffer = msg;
 			delete[] msg;
 			m_sslStatus = SSL_ERROR_NONE;
-			return connect_s::RECEIVED;
+			return ConnectionState::RECEIVED;
 		}
 	}
 	else
 	{
 		m_sslStatus = SSL_ERROR_NONE;
-		return connect_s::NO_DATA_PRESENT;
+		return ConnectionState::NO_DATA_PRESENT;
 	}
 }
 
-connect_s NewConnectionInfo::ReceiveSocket(std::string& buffer, bool file, int expectedLength)
+ConnectionState ConnectionInfo::ReceiveSocket(std::string& buffer, bool file, int expectedLength)
 {
 	int bytes = recv(m_socket, nullptr, 0, MSG_PEEK);
 
@@ -324,18 +324,18 @@ connect_s NewConnectionInfo::ReceiveSocket(std::string& buffer, bool file, int e
 		delete[] data;
 
 		m_socketStatus = SOCKET_OK;
-		return connect_s::RECEIVED;
+		return ConnectionState::RECEIVED;
 	}
 	else if (bytes == SOCKET_ERROR)
 	{
 		m_socketStatus = GetSocketError();
 		if (m_socketStatus == WSAEWOULDBLOCK)
 		{
-			return connect_s::NO_DATA_PRESENT;
+			return ConnectionState::NO_DATA_PRESENT;
 		}
 		else
 		{
-			return connect_s::ERR;
+			return ConnectionState::ERR;
 		}
 	}
 	else
@@ -343,11 +343,11 @@ connect_s NewConnectionInfo::ReceiveSocket(std::string& buffer, bool file, int e
 		Shutdown();
 		m_socketStatus = SOCKET_OK;
 
-		return connect_s::SHUTDOWN;
+		return ConnectionState::SHUTDOWN;
 	}
 }
 
-int NewConnectionInfo::SelectForRead()
+int ConnectionInfo::SelectForRead()
 {
 	fd_set set;
 	ZeroMemory(&set, sizeof(set));
@@ -357,7 +357,7 @@ int NewConnectionInfo::SelectForRead()
 	return select(0, &set, nullptr, nullptr, &timeout);
 }
 
-int NewConnectionInfo::SelectForWrite()
+int ConnectionInfo::SelectForWrite()
 {
 	fd_set set;
 	ZeroMemory(&set, sizeof(set));
@@ -367,7 +367,7 @@ int NewConnectionInfo::SelectForWrite()
 	return select(0, nullptr, &set, nullptr, &timeout);
 }
 
-int NewConnectionInfo::GetSocketError()
+int ConnectionInfo::GetSocketError()
 {
 	int val;
 	int len = sizeof(val);
@@ -376,7 +376,7 @@ int NewConnectionInfo::GetSocketError()
 
 	return val;
 }
-int NewConnectionInfo::GetSocketError(SOCKET socket)
+int ConnectionInfo::GetSocketError(SOCKET socket)
 {
 	int val, len = sizeof(val);
 

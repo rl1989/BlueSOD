@@ -30,7 +30,7 @@ void Server::BroadCastMessage(const std::string& msg)
 	}*/
 }
 
-bool Server::AddClient(NewConnectionInfo& ci, const std::string& username)
+bool Server::AddClient(ConnectionInfo& ci, const std::string& username)
 {
 	return m_newClientList.Add(move(ci), username);
 }
@@ -47,20 +47,20 @@ void Server::Run(ServerState state)
 			case ServerState::RUNNING:
 				for (auto it = m_newClientList.Begin(); it != m_newClientList.End(); it++)
 				{
-					NewConnectionInfo* ci = it->GetConnectionInfo();
+					ConnectionInfo* ci = it->GetConnectionInfo();
 					string msg;
 					
 					switch (ci->Receive(msg))
 					{
-						case connect_s::ERR:
+						case ConnectionState::ERR:
 							/*Destroy the object.*/
 							m_newClientList.Erase(it);
 							break;
-						case connect_s::SHUTDOWN:
+						case ConnectionState::SHUTDOWN:
 							/*Destroy the object.*/
 							m_newClientList.Erase(it);
 							break;
-						case connect_s::RECEIVED:
+						case ConnectionState::RECEIVED:
 							/*Begin processing the message. Must determine what information the client needs, if any.*/
 							switch (ParseMessage(msg))
 							{
@@ -78,10 +78,10 @@ void Server::Run(ServerState state)
 									break;
 							}
 							break;
-						case connect_s::NO_DATA_PRESENT:
+						case ConnectionState::NO_DATA_PRESENT:
 							/*Do nothing.*/
 							break;
-						case connect_s::WANT_READ:
+						case ConnectionState::WANT_READ:
 							/*As per OpenSSL's documentation, we must call the function again.*/
 							ci->Receive(msg);
 							break;

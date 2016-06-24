@@ -18,7 +18,7 @@ enum ServerState
 	OFF, RUNNING, NOT_ACCEPTING_CONNECTIONS, RESET, START_UP
 };
 
-enum connect_s
+enum ConnectionState
 {
 	OK, ERR, NOT_FULLY_SENT, NOT_INITIATED, NOT_SENT, SHUTDOWN, SENT, RECEIVED,
 	WANT_READ, WANT_WRITE, NO_DATA_PRESENT
@@ -28,7 +28,7 @@ enum connect_s
 
 #define SOCKET_OK 0
 
-class NewConnectionInfo
+class ConnectionInfo
 {
 private:
 	SOCKET m_socket{ INVALID_SOCKET };
@@ -38,18 +38,18 @@ private:
 	int m_bytesSent{ 0 };
 
 public:
-	NewConnectionInfo() = default;
-	explicit NewConnectionInfo(SOCKET socket);
-	NewConnectionInfo(SOCKET socket, SSL* ssl);
-	NewConnectionInfo(NewConnectionInfo&& move);
-	NewConnectionInfo& operator=(NewConnectionInfo&& move);
-	~NewConnectionInfo();
+	ConnectionInfo() = default;
+	explicit ConnectionInfo(SOCKET socket);
+	ConnectionInfo(SOCKET socket, SSL* ssl);
+	ConnectionInfo(ConnectionInfo&& move);
+	ConnectionInfo& operator=(ConnectionInfo&& move);
+	~ConnectionInfo();
 	
-	connect_s Send(const std::string& msg);
-	connect_s Receive(std::string& buffer, bool file = false, int expectedLength = 0);
+	ConnectionState Send(const std::string& msg);
+	ConnectionState Receive(std::string& buffer, bool file = false, int expectedLength = 0);
 	void Shutdown(int how = SD_BOTH);
 	bool IsValid();
-	connect_s Accept(SOCKET listener, SSL_CTX* ssl_ctx);
+	ConnectionState Accept(SOCKET listener, SSL_CTX* ssl_ctx);
 
 	SOCKET GetSocket();
 	SSL* GetSSL();
@@ -61,10 +61,10 @@ public:
 	void SetSSL(SSL* ssl);
 
 private:
-	connect_s SendSSL(const std::string& msg);
-	connect_s SendSocket(const std::string& msg);
-	connect_s ReceiveSSL(std::string& buffer, bool file = false, int expectedLength = 0);
-	connect_s ReceiveSocket(std::string& buffer, bool file = false, int expectedLength = 0);
+	ConnectionState SendSSL(const std::string& msg);
+	ConnectionState SendSocket(const std::string& msg);
+	ConnectionState ReceiveSSL(std::string& buffer, bool file = false, int expectedLength = 0);
+	ConnectionState ReceiveSocket(std::string& buffer, bool file = false, int expectedLength = 0);
 	int SelectForRead();
 	int SelectForWrite();
 

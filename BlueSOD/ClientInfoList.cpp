@@ -4,7 +4,7 @@ using std::lock_guard;
 using std::mutex;
 using std::move;
 
-bool ClientInfoList::Add(NewConnectionInfo&& ci, const std::string & username)
+bool ClientInfoList::Add(ConnectionInfo&& ci, const std::string & username)
 {
 	lock_guard<mutex> lck(m_mutex);
 

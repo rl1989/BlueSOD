@@ -70,7 +70,7 @@ void ClientInfoListTest()
 {
 	ClientInfoList cil;
 	srand(time(nullptr));
-	NewConnectionInfo ci{};
+	ConnectionInfo ci{};
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -120,7 +120,7 @@ void AlgorithmTest()
 void ClientInfoListStressTest()
 {
 	ClientInfoList list;
-	NewConnectionInfo ci{};
+	ConnectionInfo ci{};
 	srand(time(nullptr));
 	int times = 0;
 

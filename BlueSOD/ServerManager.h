@@ -151,7 +151,7 @@ private:
 			NOT_OK - An error occurred and ci is not valid.
 			NO_CONNECTION_PRESENT - There was no connection present.
 	*/
-	NewConnectionInfo AcceptIncomingNewConnection();
+	ConnectionInfo AcceptIncomingNewConnection();
 
 	//Stop accepting connections. Sets the state of the ServerManager to NOT_ACCEPTING_CONNECTIONS
 	//and closes the client socket and the listening socket (if available).

@@ -6,7 +6,7 @@ using std::string;
 using std::list;
 using std::vector;
 
-void UserVerifier::AddPendingConnection(NewConnectionInfo&& ci)
+void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 {
 	m_pendingConnections.PushBack(ci);
 }
@@ -31,9 +31,9 @@ int UserVerifier::NumRejectedConnections()
 	return m_rejectedConnections.Size();
 }
 
-NewConnectionInfo UserVerifier::PopRejectedConnection()
+ConnectionInfo UserVerifier::PopRejectedConnection()
 {
-	NewConnectionInfo ci = move(m_rejectedConnections.Front());
+	ConnectionInfo ci = move(m_rejectedConnections.Front());
 
 	m_rejectedConnections.PopFront();
 
@@ -48,20 +48,20 @@ void UserVerifier::Run(ServerState state)
 	{
 		if (HasPendingConnections())
 		{
-			NewConnectionInfo ci = move(PopPendingConnection());
+			ConnectionInfo ci = move(PopPendingConnection());
 			if (ci.IsValid())
 			{
 				string msg;
 				switch (ci.Receive(msg))
 				{
-					case connect_s::NO_DATA_PRESENT:
-					case connect_s::WANT_READ:
+					case ConnectionState::NO_DATA_PRESENT:
+					case ConnectionState::WANT_READ:
 						AddPendingConnection(move(ci));
 						break;
-					case connect_s::ERR:
+					case ConnectionState::ERR:
 						/*Log error and let ci go out of scope to shutdown the connection.*/
 						break;
-					case connect_s::RECEIVED:
+					case ConnectionState::RECEIVED:
 						if (VerifyLoginAttempt(msg))
 						{
 							if (VerifyLoginInformation(msg))
@@ -96,25 +96,25 @@ ServerState UserVerifier::GetState()
 	return m_state.RetrieveObject();
 }
 
-NewConnectionInfo UserVerifier::PopVerifiedConnection()
+ConnectionInfo UserVerifier::PopVerifiedConnection()
 {
-	NewConnectionInfo ci = move(m_verifiedConnections.Front());
+	ConnectionInfo ci = move(m_verifiedConnections.Front());
 
 	m_verifiedConnections.PopFront();
 
 	return ci;
 }
 
-NewConnectionInfo UserVerifier::PopPendingConnection()
+ConnectionInfo UserVerifier::PopPendingConnection()
 {
-	NewConnectionInfo ci = move(m_pendingConnections.Front());
+	ConnectionInfo ci = move(m_pendingConnections.Front());
 
 	m_pendingConnections.PopFront();
 
 	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(NewConnectionInfo&& ci)
+void UserVerifier::AddVerifiedConnection(ConnectionInfo&& ci)
 {
 	m_verifiedConnections.PushBack(ci);
 }
@@ -129,11 +129,11 @@ int UserVerifier::NumOfPendingConnections()
 	return m_pendingConnections.Size();
 }
 
-void UserVerifier::AddRejectedConnection(NewConnectionInfo&& ci)
+void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
 {
 	m_rejectedConnections.PushBack(ci);
 }
-void UserVerifier::AddInvalidConnection(NewConnectionInfo && ci)
+void UserVerifier::AddInvalidConnection(ConnectionInfo && ci)
 {
 	m_invalidConnections.PushBack(ci);
 }

@@ -115,9 +115,9 @@ bool ServerManager::IsListening()
 	return m_listenerSocket != INVALID_SOCKET;
 }
 
-NewConnectionInfo ServerManager::AcceptIncomingNewConnection()
+ConnectionInfo ServerManager::AcceptIncomingNewConnection()
 {
-	NewConnectionInfo ci{};
+	ConnectionInfo ci{};
 
 	if (!m_bWSA || GetState() != ServerState::RUNNING)
 	{
@@ -185,7 +185,7 @@ bool ServerManager::Run(ServerState state)
 			
 			/*Connect with any incoming clients.*/
 			case ServerState::RUNNING:
-				NewConnectionInfo ci = move(AcceptIncomingNewConnection());
+				ConnectionInfo ci = move(AcceptIncomingNewConnection());
 
 				if ( !(ci.IsValid()) )
 				{

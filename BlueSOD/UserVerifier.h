@@ -20,10 +20,10 @@
 class UserVerifier
 {
 private:
-	TS_Deque<NewConnectionInfo> m_pendingConnections{};
-	TS_Deque<NewConnectionInfo> m_verifiedConnections{};
-	TS_Deque<NewConnectionInfo> m_rejectedConnections{};
-	TS_Deque<NewConnectionInfo> m_invalidConnections{};
+	TS_Deque<ConnectionInfo> m_pendingConnections{};
+	TS_Deque<ConnectionInfo> m_verifiedConnections{};
+	TS_Deque<ConnectionInfo> m_rejectedConnections{};
+	TS_Deque<ConnectionInfo> m_invalidConnections{};
 	ThreadSafe<ServerState> m_state{};
 	SQLiteDb m_db{};
 
@@ -32,24 +32,24 @@ public:
 		: m_state{ state },
 		m_db{ userInfoDbLocation }
 	{}
-	void AddPendingConnection(NewConnectionInfo&& ci);
+	void AddPendingConnection(ConnectionInfo&& ci);
 	bool HasVerifiedConnections();
 	int NumVerifiedConnections();
-	NewConnectionInfo PopVerifiedConnection();
+	ConnectionInfo PopVerifiedConnection();
 	bool HasRejectedConnections();
 	int NumRejectedConnections();
-	NewConnectionInfo PopRejectedConnection();
+	ConnectionInfo PopRejectedConnection();
 	void Run(ServerState state = ServerState::RUNNING);
 	void SetState(ServerState state);
 	ServerState GetState();
 
 private:
-	NewConnectionInfo PopPendingConnection();
-	void AddVerifiedConnection(NewConnectionInfo&& ci);
+	ConnectionInfo PopPendingConnection();
+	void AddVerifiedConnection(ConnectionInfo&& ci);
 	bool HasPendingConnections();
 	int NumOfPendingConnections();
-	void AddRejectedConnection(NewConnectionInfo&& ci);
-	void AddInvalidConnection(NewConnectionInfo&& ci);
+	void AddRejectedConnection(ConnectionInfo&& ci);
+	void AddInvalidConnection(ConnectionInfo&& ci);
 	bool VerifyLoginAttempt(const std::string& msg);
 	bool VerifyLoginInformation(const std::string& msg);
 };

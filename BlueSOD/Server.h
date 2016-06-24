@@ -47,7 +47,7 @@ public:
 	Server() = default;
 	~Server() = default;
 	
-	bool AddClient(NewConnectionInfo& ci, const std::string& username);
+	bool AddClient(ConnectionInfo& ci, const std::string& username);
 	//Initializes the server. This is where the code for handling communication will be.
 	//TO DO: Implement.
 	void Run(ServerState state = ServerState::RUNNING);

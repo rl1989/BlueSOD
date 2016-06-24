@@ -3,7 +3,7 @@
 using std::chrono::steady_clock;
 using std::move;
 
-ClientInfo::ClientInfo(NewConnectionInfo&& ci, const std::string& username)
+ClientInfo::ClientInfo(ConnectionInfo&& ci, const std::string& username)
 	:m_connectionInfo{move(ci)},
 	m_username{username}
 {}
@@ -13,7 +13,7 @@ const std::string& ClientInfo::GetUsername()
 	return m_username;
 }
 
-NewConnectionInfo* ClientInfo::GetConnectionInfo()
+ConnectionInfo* ClientInfo::GetConnectionInfo()
 {
 	return &m_connectionInfo;
 }
@@ -28,12 +28,12 @@ void ClientInfo::CloseConnection()
 	m_connectionInfo.Shutdown();
 }
 
-connect_s ClientInfo::SendMsg(const std::string& msg)
+ConnectionState ClientInfo::SendMsg(const std::string& msg)
 {
 	return m_connectionInfo.Send(msg);
 }
 
-connect_s ClientInfo::ReceiveMsg(std::string & msg)
+ConnectionState ClientInfo::ReceiveMsg(std::string & msg)
 {
 	return m_connectionInfo.Receive(msg);
 }

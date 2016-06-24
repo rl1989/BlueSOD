@@ -9,18 +9,18 @@ class ClientInfo
 {
 private:
 	std::string m_username{};
-	NewConnectionInfo m_connectionInfo{};
+	ConnectionInfo m_connectionInfo{};
 	std::chrono::time_point<std::chrono::steady_clock> m_lastAccessed{ std::chrono::steady_clock::now() };
 public:
-	ClientInfo(NewConnectionInfo&& ci, const std::string& username);
+	ClientInfo(ConnectionInfo&& ci, const std::string& username);
 	~ClientInfo() = default;
 
 	const std::string& GetUsername();
-	NewConnectionInfo* GetConnectionInfo();
+	ConnectionInfo* GetConnectionInfo();
 	std::chrono::time_point<std::chrono::steady_clock> LastAccessed();
 	void CloseConnection();
-	connect_s SendMsg(const std::string& msg);
-	connect_s ReceiveMsg(std::string& msg);
+	ConnectionState SendMsg(const std::string& msg);
+	ConnectionState ReceiveMsg(std::string& msg);
 private:
 	void Accessed();
 };
