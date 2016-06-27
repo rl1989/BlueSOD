@@ -1,13 +1,5 @@
-/*********
-
-	OpenSSL requires an exact recall if there is no data ready to be read from their buffers. Because of this,
-	I cannot encapsulate the socket and ssl functions in another object. Maybe the socket functions can be 
-	encapsulated, but definitely not the ssl functions. This might be feasible.
-
-/*********
-
 Working on Server.
-
+	-Must recall SSL_read(3) or SSL_write(3) on a WANT_READ/WANT_WRITE return.
 
 FOR LATER:
 Determine how to handle connection time outs. i.e. How long a connection should be idle before the user is timed out.
