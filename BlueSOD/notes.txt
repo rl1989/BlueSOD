@@ -1,7 +1,12 @@
+/*********
+
+	OpenSSL requires an exact recall if there is no data ready to be read from their buffers. Because of this,
+	I cannot encapsulate the socket and ssl functions in another object. Maybe the socket functions can be 
+	encapsulated, but definitely not the ssl functions. This might be feasible.
+
+/*********
+
 Working on Server.
-
-Need to make UserVerifier use ClientInfo objects for the outgoing deques (i.e. m_verifiedConnections).
-
 
 
 FOR LATER:
