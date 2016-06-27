@@ -48,7 +48,7 @@ public:
 	ConnectionState Send(const std::string& msg);
 	ConnectionState Receive(std::string& buffer, bool file = false, int expectedLength = 0);
 	void Shutdown(int how = SD_BOTH);
-	bool IsValid();
+	inline bool IsValid();
 	ConnectionState Accept(SOCKET listener, SSL_CTX* ssl_ctx);
 
 	SOCKET GetSocket();
