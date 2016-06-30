@@ -51,10 +51,10 @@ public:
 	inline bool IsValid();
 	ConnectionState Accept(SOCKET listener, SSL_CTX* ssl_ctx);
 
-	SOCKET GetSocket();
+	SOCKET Socket();
 	SSL* GetSSL();
-	int GetSocketStatus();
-	int GetSSLStatus();
+	int SocketStatus();
+	int SSLStatus();
 	int BytesSent();
 
 	void SetSocket(SOCKET socket);

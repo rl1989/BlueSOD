@@ -14,10 +14,10 @@ ConnectionInfo::ConnectionInfo(SOCKET socket, SSL* ssl)
 {}
 
 ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
-	: m_socket{move.GetSocket()},
+	: m_socket{move.Socket()},
 	m_ssl{move.GetSSL()},
-	m_socketStatus{move.GetSocketStatus()},
-	m_sslStatus{move.GetSSLStatus()},
+	m_socketStatus{move.SocketStatus()},
+	m_sslStatus{move.SSLStatus()},
 	m_bytesSent{move.BytesSent()}
 {
 	move.SetSocket(INVALID_SOCKET);
@@ -26,10 +26,10 @@ ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
 
 ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 {
-	m_socket = move.GetSocket();
+	m_socket = move.Socket();
 	m_ssl = move.GetSSL();
-	m_socketStatus = move.GetSocketStatus();
-	m_sslStatus = move.GetSSLStatus();
+	m_socketStatus = move.SocketStatus();
+	m_sslStatus = move.SSLStatus();
 	m_bytesSent = move.BytesSent();
 
 	move.SetSocket(INVALID_SOCKET);
@@ -43,12 +43,12 @@ ConnectionInfo::~ConnectionInfo()
 	Shutdown();
 }
 
-int ConnectionInfo::GetSocketStatus()
+int ConnectionInfo::SocketStatus()
 {
 	return m_socketStatus;
 }
 
-int ConnectionInfo::GetSSLStatus()
+int ConnectionInfo::SSLStatus()
 {
 	return m_sslStatus;
 }
@@ -132,7 +132,7 @@ ConnectionState ConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 
 	if (m_socket == INVALID_SOCKET)
 	{
-		m_socketStatus = GetSocketError(m_socket);
+		m_socketStatus = WSAGetLastError();
 		if (m_socketStatus == WSAEWOULDBLOCK)
 		{
 			return ConnectionState::NO_DATA_PRESENT;
@@ -160,9 +160,14 @@ ConnectionState ConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 		if (acpt <= 0)
 		{
 			m_sslStatus = SSL_get_error(m_ssl, acpt);
-			LogManager::LogSSLError();
+
 			SSL_free(m_ssl);
 			m_ssl = nullptr;
+
+			closesocket(m_socket);
+			m_socket = INVALID_SOCKET;
+
+			LogManager::LogSSLError();
 
 			return ConnectionState::ERR;
 		}
@@ -175,7 +180,7 @@ ConnectionState ConnectionInfo::Accept(SOCKET listener, SSL_CTX* ssl_ctx)
 	return ConnectionState::OK;
 }
 
-SOCKET ConnectionInfo::GetSocket()
+SOCKET ConnectionInfo::Socket()
 {
 	return m_socket;
 }
