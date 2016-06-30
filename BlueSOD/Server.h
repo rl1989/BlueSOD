@@ -2,25 +2,17 @@
 #include <mutex>
 #include <string>
 #include <list>
+#include <utility>
+#include <deque>
+#include <vector>
 #include "ServerConnections.h"
 #include "ServerConcurrency.h"
 #include "SQLiteDB.h"
-#include "ClientInfoList.h"
+#include "ClientInfo.h"
 #include "Messages.h"
-
-#define BEGIN_MESSAGE "{beg}"
-#define END_MESSAGE "{end}"
-#define IMAGE_MESSAGE "{image}"
-#define END_IMAGE_MESSAGE "{/image}"
 
 #define MSG_DB_NAME "MessageDatabase"
 #define TABLE_NAME "Conversations"
-
-enum class message_t
-{
-	MESSAGE, REQUEST_CONVO_LISTS, REQUEST_CONVO_MSGS, LOGIN, LOGOUT, INVALID
-};
-
 
 //This class represents the Server. The ServerManager will handle any initial incoming connections
 //and will pass it off to the Server, which lies in its own thread. The Server then will handle
@@ -30,11 +22,12 @@ enum class message_t
 class Server
 {
 private:
-	//List of clients currently connected.
-	ClientInfoList m_newClientList{};
+	typedef std::pair<ClientInfo, std::deque<std::string>> ClientAndMessageDeque;
+	std::vector<ClientAndMessageDeque> m_clientMessages;
+	std::mutex m_pairMutex;
 	//The state of the Server.
 	ThreadSafe<ServerState> m_state{ ServerState::OFF };
-	SQLiteDb* m_messageDb;
+	SQLiteDb m_messageDb;
 	std::mutex m_msgDbMutex;
 	std::mutex m_runMetx;
 
@@ -47,10 +40,8 @@ public:
 	Server() = default;
 	~Server() = default;
 	
-	bool AddClient(ConnectionInfo& ci, const std::string& username);
-	//Initializes the server. This is where the code for handling communication will be.
-	//TO DO: Implement.
-	void Run(ServerState state = ServerState::RUNNING);
+	inline bool AddClient(ClientInfo&& ci);
+	void Run(ServerState state = ServerState::OFF);
 	//Sets the state of the Server.
 	inline void SetState(ServerState state);
 	inline ServerState GetState();
@@ -58,8 +49,17 @@ public:
 
 private:
 	void DisconnectClients();
-	/*Not finished.*/
 	void BroadCastMessage(const std::string& msg);
-	message_t ParseMessage(std::string& msg);
+	void RecordMessages(ClientAndMessageDeque* cm);
+	void WriteMsgToDb(const std::string& username, const std::string& msg);
+	void ProcessIncomingMessages();
+	void SendQueuedMessages();
+	std::string BuildUnsentMessagesQuery(const std::string& to);
+	std::string BuildMessage(const std::string& from, const std::string& to, const std::string& message, const std::string& date);
+	std::string BuildMessage(const MessageToUser& mtu);
+	void SendMsg(std::vector<ClientAndMessageDeque>::iterator cm, const std::string& msg);
+	void RecvMsg(std::vector<ClientAndMessageDeque>::iterator cm, std::string& msgBuffer);
+	std::vector<ClientAndMessageDeque>::iterator FindUserInQueue(const std::string& username);
+	bool FindUserInDb(const std::string& user);
 };
 
