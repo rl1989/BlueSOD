@@ -11,6 +11,7 @@
 #include "UserVerifier.h"
 #include "TS_Deque.h"
 #include "LogManager.h"
+#include "Messages.h"
 
 extern void thread_cleanup();
 extern void thread_setup();
@@ -72,6 +73,7 @@ private:
 		Verifies user login information on a separate thread.
 	*/
 	UserVerifier m_userVerifier;
+	Server m_server;
 	std::thread m_serverThread;
 	std::thread m_uvThread;
 
@@ -95,6 +97,7 @@ public:
 	{
 		//m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
 		m_uvThread = std::thread(StartUserVerifier, &m_userVerifier, ServerState::OFF);
+		m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
 	}
 	~ServerManager();
 	//Run the ServerManager with the specified state.

@@ -5,9 +5,6 @@
 #pragma comment(lib, "libeay32.lib")
 #pragma comment(lib, "ssleay32.lib")
 
-#define REJECTION_MESSAGE ""
-#define VERIFIED_MESSAGE ""
-
 using std::string;
 using std::fstream;
 using std::move;
@@ -185,56 +182,84 @@ bool ServerManager::Run(ServerState state)
 			
 			/*Connect with any incoming clients.*/
 			case ServerState::RUNNING:
-				ConnectionInfo ci = move(AcceptIncomingNewConnection());
-
-				if ( !(ci.IsValid()) )
+				vector<ConnectionInfo> cis;
+				bool more;
+				do
 				{
-					string fileName = string(ERROR_LOGS_LOCATION);
-					fileName += ERROR_LOG;
-					string message;
-					message += time(nullptr);
-					message += " Could not accept connection on port ";
-					message += GetPortNumber();
-					message += ".";
-					LogManager::LogError(fileName, message);
-
-					break;
-				}
-				else
+					ConnectionInfo ci = move(AcceptIncomingNewConnection());
+					more = ci.IsValid();
+					cis.push_back(move(ci));
+				} while (more);
+				
+				for (auto it = cis.begin(); it != cis.end(); it++)
 				{
-					/* Send Connection off to be verified. */
-					//m_userVerifier.AddPendingConnection(move(ci));
-					m_userVerifier.AddPendingConnection(move(ci));
+					m_userVerifier.AddPendingConnection(move(*it));
 				}
 
 				if (m_userVerifier.HasVerifiedConnections())
 				{
 					for (int i = 0; i < m_userVerifier.NumVerifiedConnections(); i++)
 					{
-						//NewConnectionInfo ci = move(m_userVerifier.PopVerifiedConnection());
-						//string msg = VERIFIED_MESSAGE;
-						///* Send a verified message. */
-						//ci.Send(msg);
-						///* Send verified connection to m_server. */
-						////m_server.AddClient(move(ci));
+						ClientInfo ci = move(m_userVerifier.PopVerifiedConnection());
+						switch (ci.SendMsg(SUCCESSFUL_LOGIN_MSG))
+						{
+							case ConnectionState::NOT_SENT:
+							case ConnectionState::NOT_FULLY_SENT:
+							case ConnectionState::WANT_READ:
+							case ConnectionState::WANT_WRITE:
+								/*The message was not sent, so re-add it to the queue.*/
+								m_userVerifier.AddVerifiedConnection(move(ci));
+								break;
+							case ConnectionState::SENT:
+								m_server.AddClient(move(ci));
+								break;
+						}
+						/*If you get here and nothing was done with ci, then it will be shutdown because there was
+						an error that cannot be dealt with gracefully.*/
 					}
 				}
 				if (m_userVerifier.HasRejectedConnections())
 				{
 					for (int i = 0; i < m_userVerifier.NumRejectedConnections(); i++)
 					{
-						//NewConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
-						//string msg = REJECTION_MESSAGE;
-						///* Send a rejection message. */
-						//ci.Send(msg);
-						///* NewConnectionInfo's destructor calls Close() on ci.connection, so no need to 
-						//   explicitly call it. */
+						ConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
+						/* Send a rejection message. */
+						switch (ci.Send(REJECTED_LOGIN_MSG))
+						{
+							case ConnectionState::NOT_SENT:
+							case ConnectionState::NOT_FULLY_SENT:
+							case ConnectionState::WANT_WRITE:
+							case ConnectionState::WANT_READ:
+								/*Message not sent, re-add to the queue.*/
+								m_userVerifier.AddRejectedConnection(move(ci));
+								break;
+						}
+						/*If it gets here, all that can be done has been done.*/
+					}
+				}
+				if (m_userVerifier.HasInvalidConnections())
+				{
+					for (int i = 0; i < m_userVerifier.NumInvalidConnections(); i++)
+					{
+						ConnectionInfo ci = move(m_userVerifier.PopInvalidConnection());
+						/*Send a message indicating an invalid message was received.*/
+						switch (ci.Send(INVALID_MSG))
+						{
+							case ConnectionState::NOT_SENT:
+							case ConnectionState::NOT_FULLY_SENT:
+							case ConnectionState::WANT_WRITE:
+							case ConnectionState::WANT_READ:
+								/*Message was not sent, re-add to the queue.*/
+								m_userVerifier.AddInvalidConnection(move(ci));
+								break;
+						}
+						/*If it gets here, all that can be done has been done.*/
 					}
 				}
 				break;
 		}
 
-		//m_server.SetState(curState);
+		m_server.SetState(curState);
 		m_userVerifier.SetState(curState);
 
 		curState = GetState();
@@ -351,6 +376,8 @@ SSL_CTX* ServerManager::CreateSSLContext()
 		LogManager::LogSSLError();
 		return nullptr;
 	}
+
+
 
 	return ctx;
 }
