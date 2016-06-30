@@ -42,48 +42,83 @@ ConnectionInfo UserVerifier::PopRejectedConnection()
 
 void UserVerifier::Run(ServerState state)
 {
+	if (!m_runMutex.try_lock())
+		return;
 	SetState(state);
 
-	while (GetState() == ServerState::RUNNING)
+	while (state != ServerState::OFF)
 	{
-		if (HasPendingConnections())
+		switch (state)
 		{
-			ConnectionInfo ci = move(PopPendingConnection());
-			if (ci.IsValid())
-			{
-				string msg;
-				switch (ci.Receive(msg))
+			case ServerState::RUNNING:
+				if (HasPendingConnections())
 				{
-					case ConnectionState::NO_DATA_PRESENT:
-					case ConnectionState::WANT_READ:
-						AddPendingConnection(move(ci));
-						break;
-					case ConnectionState::ERR:
-						/*Log error and let ci go out of scope to shutdown the connection.*/
-						break;
-					case ConnectionState::RECEIVED:
-						if (VerifyLoginAttempt(msg))
+					ConnectionInfo ci = move(PopPendingConnection());
+					if (ci.IsValid())
+					{
+						string msg;
+						switch (ci.Receive(msg))
 						{
-							if (VerifyLoginInformation(msg))
-							{
-								//AddVerifiedConnection(move(ci));
-							}
-							else
-							{
-								//AddRejectedConnection(move(ci));
-							}
+							case ConnectionState::NO_DATA_PRESENT:
+							case ConnectionState::WANT_READ:
+								AddPendingConnection(move(ci));
+								break;
+							case ConnectionState::ERR:
+								/*Log error and let ci go out of scope to shutdown the connection.*/
+								break;
+							case ConnectionState::RECEIVED:
+								LoginMessage message = LoginMessage::ParseLoginMsg(msg);
 
+								if (message.IsValid())
+								{
+									if (VerifyLoginInformation(message.Username(), message.Password()))
+									{
+										ClientInfo client{ move(ci), message.Username() };
+										AddVerifiedConnection(move(client));
+									}
+									else
+									{
+										AddRejectedConnection(move(ci));
+									}
+								}
+								else
+								{
+									AddInvalidConnection(move(ci));
+								}
+								
+								break;
 						}
-						else
-						{
-							AddInvalidConnection(move(ci));
-						}
-						break;
+					}
+					/*ci is invalid here*/
 				}
-			}
-			/*DO NOT USE ci HERE!!!*/
+				break;
+			case ServerState::RESET:
+				/*Remove all connections and clients.*/
+				while (HasPendingConnections())
+				{
+					PopPendingConnection();
+				}
+				while (HasVerifiedConnections())
+				{
+					PopVerifiedConnection();
+				}
+				while (HasRejectedConnections())
+				{
+					PopRejectedConnection();
+				}
+				while (HasInvalidConnections())
+				{
+					PopInvalidConnection();
+				}
+
+				SetState(ServerState::RUNNING);
+				break;
 		}
+
+		state = GetState();
 	}
+
+	m_runMutex.unlock();
 }
 
 void UserVerifier::SetState(ServerState state)
@@ -96,9 +131,9 @@ ServerState UserVerifier::GetState()
 	return m_state.RetrieveObject();
 }
 
-ConnectionInfo UserVerifier::PopVerifiedConnection()
+ClientInfo UserVerifier::PopVerifiedConnection()
 {
-	ConnectionInfo ci = move(m_verifiedConnections.Front());
+	ClientInfo ci = move(m_verifiedConnections.Front());
 
 	m_verifiedConnections.PopFront();
 
@@ -114,7 +149,7 @@ ConnectionInfo UserVerifier::PopPendingConnection()
 	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(ConnectionInfo&& ci)
+void UserVerifier::AddVerifiedConnection(ClientInfo&& ci)
 {
 	m_verifiedConnections.PushBack(ci);
 }
@@ -133,19 +168,29 @@ void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
 {
 	m_rejectedConnections.PushBack(ci);
 }
+inline bool UserVerifier::HasInvalidConnections()
+{
+	return m_invalidConnections.Empty();
+}
+inline int UserVerifier::NumInvalidConnections()
+{
+	return m_invalidConnections.Size();
+}
+ConnectionInfo UserVerifier::PopInvalidConnection()
+{
+	ConnectionInfo ci = move(m_invalidConnections.Front());
+
+	m_invalidConnections.PopFront();
+
+	return ci;
+}
 void UserVerifier::AddInvalidConnection(ConnectionInfo && ci)
 {
 	m_invalidConnections.PushBack(ci);
 }
 
-bool UserVerifier::VerifyLoginAttempt(const string& msg)
+bool UserVerifier::VerifyLoginInformation(const string& username, const string& password)
 {
-	return msg.compare(LOGIN_MSG) == 0;
-}
-
-bool UserVerifier::VerifyLoginInformation(const string& msg)
-{
-	int delimiter = msg.find_first_of(DELIMITER, 1);
 	string sqlStatement{ "SELECT " };
 	sqlStatement += USERNAME_COL;
 	sqlStatement += ",";
@@ -154,10 +199,10 @@ bool UserVerifier::VerifyLoginInformation(const string& msg)
 	sqlStatement += USER_INFO_DB;
 	sqlStatement += " WHERE ";
 	sqlStatement += USERNAME_COL;
-	sqlStatement += "=" + SQLiteDb::CleanStatement(msg.substr(1, delimiter));
+	sqlStatement += "=" + username;
 	sqlStatement += " AND ";
 	sqlStatement += PASSWORD_COL;
-	sqlStatement += "=" + SQLiteDb::CleanStatement(msg.substr(delimiter, msg.size()));
+	sqlStatement += "=" + password;
 	sqlStatement += ";";
 
 	return m_db.ExecuteStatement(sqlStatement) == SQLITE_ROW;

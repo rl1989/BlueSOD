@@ -10,46 +10,45 @@
 #include "ServerConcurrency.h"
 #include "TS_Deque.cpp"
 #include "ServerConcurrency.cpp"
-
-#define SUCCESSFUL_LOGIN "1"
-#define UNSUCCESSFUL_LOGIN "2"
-#define LOGIN_MSG "3"
-#define LOGIN_BEGIN 1
-#define DELIMITER ";"
+#include "ClientInfo.h"
+#include "Messages.h"
 
 class UserVerifier
 {
 private:
 	TS_Deque<ConnectionInfo> m_pendingConnections{};
-	TS_Deque<ConnectionInfo> m_verifiedConnections{};
+	TS_Deque<ClientInfo> m_verifiedConnections{};
 	TS_Deque<ConnectionInfo> m_rejectedConnections{};
 	TS_Deque<ConnectionInfo> m_invalidConnections{};
-	ThreadSafe<ServerState> m_state{};
+	ThreadSafe<ServerState> m_state{ServerState::OFF};
 	SQLiteDb m_db{};
+	std::mutex m_runMutex{};
 
 public:
 	UserVerifier(const std::string& userInfoDbLocation, ServerState state = ServerState::OFF)
 		: m_state{ state },
 		m_db{ userInfoDbLocation }
 	{}
-	void AddPendingConnection(ConnectionInfo&& ci);
-	bool HasVerifiedConnections();
-	int NumVerifiedConnections();
-	ConnectionInfo PopVerifiedConnection();
-	bool HasRejectedConnections();
-	int NumRejectedConnections();
+	inline void AddPendingConnection(ConnectionInfo&& ci);
+	inline bool HasVerifiedConnections();
+	inline int NumVerifiedConnections();
+	ClientInfo PopVerifiedConnection();
+	inline bool HasRejectedConnections();
+	inline int NumRejectedConnections();
 	ConnectionInfo PopRejectedConnection();
+	inline void AddRejectedConnection(ConnectionInfo&& ci);
+	inline bool HasInvalidConnections();
+	inline int NumInvalidConnections();
+	ConnectionInfo PopInvalidConnection();
+	inline void AddInvalidConnection(ConnectionInfo&& ci);
+	inline void AddVerifiedConnection(ClientInfo&& ci);
 	void Run(ServerState state = ServerState::RUNNING);
-	void SetState(ServerState state);
-	ServerState GetState();
+	inline void SetState(ServerState state);
+	inline ServerState GetState();
 
 private:
 	ConnectionInfo PopPendingConnection();
-	void AddVerifiedConnection(ConnectionInfo&& ci);
-	bool HasPendingConnections();
-	int NumOfPendingConnections();
-	void AddRejectedConnection(ConnectionInfo&& ci);
-	void AddInvalidConnection(ConnectionInfo&& ci);
-	bool VerifyLoginAttempt(const std::string& msg);
-	bool VerifyLoginInformation(const std::string& msg);
+	inline bool HasPendingConnections();
+	inline int NumOfPendingConnections();
+	bool VerifyLoginInformation(const std::string& username, const std::string& password);
 };
