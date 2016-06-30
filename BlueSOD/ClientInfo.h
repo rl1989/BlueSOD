@@ -14,6 +14,8 @@ private:
 public:
 	ClientInfo(ConnectionInfo&& ci, const std::string& username);
 	~ClientInfo() = default;
+	ClientInfo(ClientInfo&& move);
+	ClientInfo& operator=(ClientInfo&& move);
 
 	const std::string& GetUsername();
 	ConnectionInfo* GetConnectionInfo();
@@ -21,6 +23,8 @@ public:
 	void CloseConnection();
 	ConnectionState SendMsg(const std::string& msg);
 	ConnectionState ReceiveMsg(std::string& msg);
+
+	void SetUsername(const std::string& username);
 private:
 	void Accessed();
 };
