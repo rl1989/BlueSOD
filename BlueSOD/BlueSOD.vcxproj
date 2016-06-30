@@ -133,7 +133,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ClientInfo.h" />
-    <ClInclude Include="ClientInfoList.h" />
     <ClInclude Include="Flags.h" />
     <ClInclude Include="LogManager.h" />
     <ClInclude Include="Messages.h" />
@@ -149,8 +148,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ClientInfo.cpp" />
-    <ClCompile Include="ClientInfoList.cpp" />
     <ClCompile Include="LogManager.cpp" />
+    <ClCompile Include="Messages.cpp" />
     <ClCompile Include="ServerConcurrency.cpp" />
     <ClCompile Include="ServerConnections.cpp" />
     <ClCompile Include="Server.cpp" />

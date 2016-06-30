@@ -48,9 +48,6 @@
     <ClInclude Include="ClientInfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ClientInfoList.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Messages.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -95,7 +92,7 @@
     <ClCompile Include="ClientInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ClientInfoList.cpp">
+    <ClCompile Include="Messages.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
