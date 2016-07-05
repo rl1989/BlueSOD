@@ -11,6 +11,11 @@ void UserVerifier::AddPendingConnection(ConnectionInfo&& ci)
 	m_pendingConnections.PushBack(ci);
 }
 
+inline void UserVerifier::AddPendingConnection(const ConnectionInfo& ci)
+{
+	m_pendingConnections.PushBack(ci);
+}
+
 bool UserVerifier::HasVerifiedConnections()
 {
 	return !m_verifiedConnections.Empty();
@@ -64,17 +69,19 @@ void UserVerifier::Run(ServerState state)
 								AddPendingConnection(move(ci));
 								break;
 							case ConnectionState::ERR:
-								/*Log error and let ci go out of scope to shutdown the connection.*/
+								/*Log error and shut down the connection.*/
+								ci.Shutdown();
 								break;
 							case ConnectionState::RECEIVED:
 								LoginMessage message = LoginMessage::ParseLoginMsg(msg);
 
 								if (message.IsValid())
 								{
-									if (VerifyLoginInformation(message.Username(), message.Password()))
+									int id;
+									if (VerifyLoginInformation(message.Username(), message.Password(), &id))
 									{
-										ClientInfo client{ move(ci), message.Username() };
-										AddVerifiedConnection(move(client));
+										ClientInfo client{ move(ci), message.Username(), id };
+										AddVerifiedConnectionToBack(move(client));
 									}
 									else
 									{
@@ -89,26 +96,25 @@ void UserVerifier::Run(ServerState state)
 								break;
 						}
 					}
-					/*ci is invalid here*/
 				}
 				break;
 			case ServerState::RESET:
 				/*Remove all connections and clients.*/
 				while (HasPendingConnections())
 				{
-					PopPendingConnection();
+					PopPendingConnection().Shutdown();
 				}
 				while (HasVerifiedConnections())
 				{
-					PopVerifiedConnection();
+					PopVerifiedConnection().CloseConnection();
 				}
 				while (HasRejectedConnections())
 				{
-					PopRejectedConnection();
+					PopRejectedConnection().Shutdown();
 				}
 				while (HasInvalidConnections())
 				{
-					PopInvalidConnection();
+					PopInvalidConnection().Shutdown();
 				}
 
 				SetState(ServerState::RUNNING);
@@ -149,7 +155,12 @@ ConnectionInfo UserVerifier::PopPendingConnection()
 	return ci;
 }
 
-void UserVerifier::AddVerifiedConnection(ClientInfo&& ci)
+void UserVerifier::AddVerifiedConnectionToBack(ClientInfo&& ci)
+{
+	m_verifiedConnections.PushBack(ci);
+}
+
+inline void UserVerifier::AddVerifiedConnectionToBack(const ClientInfo & ci)
 {
 	m_verifiedConnections.PushBack(ci);
 }
@@ -165,6 +176,10 @@ int UserVerifier::NumOfPendingConnections()
 }
 
 void UserVerifier::AddRejectedConnection(ConnectionInfo&& ci)
+{
+	m_rejectedConnections.PushBack(ci);
+}
+inline void UserVerifier::AddRejectedConnection(const ConnectionInfo & ci)
 {
 	m_rejectedConnections.PushBack(ci);
 }
@@ -189,9 +204,16 @@ void UserVerifier::AddInvalidConnection(ConnectionInfo && ci)
 	m_invalidConnections.PushBack(ci);
 }
 
-bool UserVerifier::VerifyLoginInformation(const string& username, const string& password)
+inline void UserVerifier::AddInvalidConnectionToBack(const ConnectionInfo & ci)
+{
+	m_invalidConnections.PushBack(ci);
+}
+
+bool UserVerifier::VerifyLoginInformation(const string& username, const string& password, int* id)
 {
 	string sqlStatement{ "SELECT " };
+	sqlStatement += ID_COL;
+	sqlStatement += ",";
 	sqlStatement += USERNAME_COL;
 	sqlStatement += ",";
 	sqlStatement += PASSWORD_COL;
@@ -205,5 +227,13 @@ bool UserVerifier::VerifyLoginInformation(const string& username, const string& 
 	sqlStatement += "=" + password;
 	sqlStatement += ";";
 
-	return m_db.ExecuteStatement(sqlStatement) == SQLITE_ROW;
+	if (m_db.ExecuteStatement(sqlStatement))
+	{
+		*id = m_db.GetColumnInt(0);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }

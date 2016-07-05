@@ -152,26 +152,26 @@ bool ServerManager::Run(ServerState state)
 		switch (curState)
 		{
 			case ServerState::START_UP:
+			{
+				int port = GetPortNumber();
+				if (!OpenForConnections(port))
 				{
-					int port = GetPortNumber();
-					if (!OpenForConnections(port))
-					{
-						string fName, msg;
-						fName = ERROR_LOGS_LOCATION;
-						fName += CONNECTION_ERROR_LOG;
-						msg = time(nullptr);
-						msg += " Could not open for connection on port ";
-						msg += port;
-						LogManager::LogError(fName, msg);
+					string fName, msg;
+					fName = ERROR_LOGS_LOCATION;
+					fName += CONNECTION_ERROR_LOG;
+					msg = time(nullptr);
+					msg += " Could not open for connection on port ";
+					msg += port;
+					LogManager::LogError(fName, msg);
 
-						return false;
-					}
-					else
-					{
-						SetState(ServerState::RUNNING);
-					}
+					return false;
 				}
-				break;
+				else
+				{
+					SetState(ServerState::RUNNING);
+				}
+			}
+			break;
 
 			/*A new port was requested to be used by the administrator. Close the current socket and
 			open a new one. Then send a message to any clients telling them to use the new port.*/
@@ -179,81 +179,81 @@ bool ServerManager::Run(ServerState state)
 				if (!Reset())
 					return false;
 				break;
-			
-			/*Connect with any incoming clients.*/
+
+				/*Connect with any incoming clients.*/
+				/*Make this only process one connection at a time to allow as many people as possible to connect.
+				  Any worked on connections are taken from the front and placed in the back.
+				*/
 			case ServerState::RUNNING:
-				vector<ConnectionInfo> cis;
-				bool more;
-				do
+				vector<ConnectionInfo> connections{};
+				ConnectionInfo incoming = AcceptIncomingNewConnection();
+
+				/*Create connections until there are no more incoming connections.*/
+				while (incoming.IsValid())
 				{
-					ConnectionInfo ci = move(AcceptIncomingNewConnection());
-					more = ci.IsValid();
-					cis.push_back(move(ci));
-				} while (more);
-				
-				for (auto it = cis.begin(); it != cis.end(); it++)
+					connections.push_back(incoming);
+
+					incoming = AcceptIncomingNewConnection();
+				}
+				for (auto it = connections.begin(); it != connections.end(); it++)
 				{
-					m_userVerifier.AddPendingConnection(move(*it));
+					m_userVerifier.AddPendingConnection(*it);
 				}
 
 				if (m_userVerifier.HasVerifiedConnections())
 				{
-					for (int i = 0; i < m_userVerifier.NumVerifiedConnections(); i++)
+					ClientInfo verified = move(m_userVerifier.PopVerifiedConnection());
+					switch (verified.SendMsg(SUCCESSFUL_LOGIN_MSG))
 					{
-						ClientInfo ci = move(m_userVerifier.PopVerifiedConnection());
-						switch (ci.SendMsg(SUCCESSFUL_LOGIN_MSG))
-						{
-							case ConnectionState::NOT_SENT:
-							case ConnectionState::NOT_FULLY_SENT:
-							case ConnectionState::WANT_READ:
-							case ConnectionState::WANT_WRITE:
-								/*The message was not sent, so re-add it to the queue.*/
-								m_userVerifier.AddVerifiedConnection(move(ci));
-								break;
-							case ConnectionState::SENT:
-								m_server.AddClient(move(ci));
-								break;
-						}
-						/*If you get here and nothing was done with ci, then it will be shutdown because there was
-						an error that cannot be dealt with gracefully.*/
+						case ConnectionState::NOT_SENT:
+						case ConnectionState::NOT_FULLY_SENT:
+						case ConnectionState::WANT_READ:
+						case ConnectionState::WANT_WRITE:
+							/*The message was not sent, so re-add it to the queue.*/
+							m_userVerifier.AddVerifiedConnectionToBack(move(verified));
+							break;
+						case ConnectionState::SENT:
+							m_server.AddClient(move(verified));
+							break;
+						case ConnectionState::ERR:
+							verified.CloseConnection();
+							break;
 					}
 				}
 				if (m_userVerifier.HasRejectedConnections())
 				{
-					for (int i = 0; i < m_userVerifier.NumRejectedConnections(); i++)
+					ConnectionInfo rejected = move(m_userVerifier.PopRejectedConnection());
+					/* Send a rejection message. */
+					switch (rejected.Send(REJECTED_LOGIN_MSG))
 					{
-						ConnectionInfo ci = move(m_userVerifier.PopRejectedConnection());
-						/* Send a rejection message. */
-						switch (ci.Send(REJECTED_LOGIN_MSG))
-						{
-							case ConnectionState::NOT_SENT:
-							case ConnectionState::NOT_FULLY_SENT:
-							case ConnectionState::WANT_WRITE:
-							case ConnectionState::WANT_READ:
-								/*Message not sent, re-add to the queue.*/
-								m_userVerifier.AddRejectedConnection(move(ci));
-								break;
-						}
-						/*If it gets here, all that can be done has been done.*/
+						case ConnectionState::NOT_SENT:
+						case ConnectionState::NOT_FULLY_SENT:
+						case ConnectionState::WANT_WRITE:
+						case ConnectionState::WANT_READ:
+							/*Message not sent, re-add to the queue.*/
+							m_userVerifier.AddRejectedConnection(move(rejected));
+							break;
+						default:
+							rejected.Shutdown();
+							break;
 					}
 				}
 				if (m_userVerifier.HasInvalidConnections())
 				{
-					for (int i = 0; i < m_userVerifier.NumInvalidConnections(); i++)
+					ConnectionInfo invalid = move(m_userVerifier.PopInvalidConnection());
+					/*Send a message indicating an invalid message was received.*/
+					switch (invalid.Send(INVALID_MSG))
 					{
-						ConnectionInfo ci = move(m_userVerifier.PopInvalidConnection());
-						/*Send a message indicating an invalid message was received.*/
-						switch (ci.Send(INVALID_MSG))
-						{
-							case ConnectionState::NOT_SENT:
-							case ConnectionState::NOT_FULLY_SENT:
-							case ConnectionState::WANT_WRITE:
-							case ConnectionState::WANT_READ:
-								/*Message was not sent, re-add to the queue.*/
-								m_userVerifier.AddInvalidConnection(move(ci));
-								break;
-						}
-						/*If it gets here, all that can be done has been done.*/
+						case ConnectionState::NOT_SENT:
+						case ConnectionState::NOT_FULLY_SENT:
+						case ConnectionState::WANT_WRITE:
+						case ConnectionState::WANT_READ:
+							/*Message was not sent, re-add to the queue.*/
+							m_userVerifier.AddInvalidConnection(move(invalid));
+							break;
+						default:
+							invalid.Shutdown();
+							break;
 					}
 				}
 				break;
