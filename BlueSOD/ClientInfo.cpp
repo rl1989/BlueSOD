@@ -2,13 +2,15 @@
 
 using std::chrono::steady_clock;
 using std::move;
+using std::string;
 
-ClientInfo::ClientInfo(ConnectionInfo&& ci, const std::string& username)
-	:m_connectionInfo{move(ci)},
-	m_username{username}
+ClientInfo::ClientInfo(ConnectionInfo&& ci, const string& username, int id)
+	:m_connectionInfo{ move(ci) },
+	m_username{ username },
+	m_id{ id }
 {}
 
-ClientInfo::ClientInfo(ClientInfo && move)
+ClientInfo::ClientInfo(ClientInfo&& move)
 	: m_username{move.GetUsername()},
 	m_connectionInfo{std::move(*(move.GetConnectionInfo()))},
 	m_lastAccessed{move.LastAccessed()}
@@ -30,6 +32,11 @@ ClientInfo& ClientInfo::operator=(ClientInfo && move)
 const std::string& ClientInfo::GetUsername()
 {
 	return m_username;
+}
+
+int ClientInfo::GetId()
+{
+	return m_id;
 }
 
 ConnectionInfo* ClientInfo::GetConnectionInfo()

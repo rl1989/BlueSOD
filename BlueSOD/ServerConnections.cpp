@@ -39,9 +39,7 @@ ConnectionInfo& ConnectionInfo::operator=(ConnectionInfo&& move)
 }
 
 ConnectionInfo::~ConnectionInfo()
-{
-	Shutdown();
-}
+{}
 
 int ConnectionInfo::SocketStatus()
 {

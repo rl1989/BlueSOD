@@ -36,6 +36,7 @@ private:
 	int m_sslStatus{SSL_ERROR_NONE};
 	int m_socketStatus{SOCKET_OK};
 	int m_bytesSent{ 0 };
+	std::shared_mutex m_sharedMutex{};
 
 public:
 	ConnectionInfo() = default;
