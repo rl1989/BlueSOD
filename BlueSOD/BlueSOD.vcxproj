@@ -143,7 +143,9 @@
     <ClInclude Include="sqlite3.h" />
     <ClInclude Include="SQLiteDB.h" />
     <ClInclude Include="SSL_concurrency.h" />
+    <ClInclude Include="ThreadSafeVector.h" />
     <ClInclude Include="TS_Deque.h" />
+    <ClInclude Include="TS_Queue.h" />
     <ClInclude Include="UserVerifier.h" />
   </ItemGroup>
   <ItemGroup>
@@ -158,7 +160,9 @@
     <ClCompile Include="sqlite3.c" />
     <ClCompile Include="SQLiteDB.cpp" />
     <ClCompile Include="SSLConnectionTest.cpp" />
+    <ClCompile Include="ThreadSafeVector.cpp" />
     <ClCompile Include="TS_Deque.cpp" />
+    <ClCompile Include="TS_Queue.cpp" />
     <ClCompile Include="UserVerifier.cpp" />
   </ItemGroup>
   <ItemGroup>
