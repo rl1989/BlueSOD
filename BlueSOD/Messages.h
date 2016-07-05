@@ -1,20 +1,22 @@
 #pragma once
 #include <string>
+#include <vector>
 
 /*Message codes*/
-#define REJECTED_LOGIN_MSG     "303"
-#define SUCCESSFUL_LOGIN_MSG   "301"
-#define UNSUCCESSFUL_LOGIN_MSG "302"
-#define LOGIN_MSG              "300"
-#define LOGOUT_MSG             "304"
-#define INVALID_MSG            "999"
-#define INVALID_MSG_RESPONSE   "990"
-#define MSG_BTWN_USERS         "100"
-#define REQ_CONVO_LISTS        "201"
-#define REQ_CONVO_MSGS         "202"
-#define REQ_FILE               "203"
-#define REQ_USER_INFO          "204"
-#define USER_DOESNT_EXIST      "901"
+#define REJECTED_LOGIN_MSG       "303"
+#define SUCCESSFUL_LOGIN_MSG     "301"
+#define UNSUCCESSFUL_LOGIN_MSG   "302"
+#define LOGIN_MSG                "300"
+#define LOGOUT_MSG               "304"
+#define INVALID_MSG              "999"
+#define INVALID_MSG_RESPONSE     "990"
+#define MSG_BTWN_USERS           "100"
+#define REQ_CONVO_LISTS          "201"
+#define REQ_CONVO_LISTS_RESPONSE "211"
+#define REQ_CONVO_MSGS           "202"
+#define REQ_FILE                 "203"
+#define REQ_USER_INFO            "204"
+#define USER_DOESNT_EXIST        "901"
 
 /*Miscellaneous message entities*/
 #define DELIMITER ";"
@@ -45,7 +47,6 @@ private:
 	std::string m_target;
 
 	UserInfoRequest(const std::string& _for, const std::string& target);
-	UserInfoRequest() = default;
 public:
 	inline std::string For();
 	inline std::string Target();
@@ -60,7 +61,6 @@ private:
 	std::string m_filename;
 
 	FileRequestMessage(const std::string& _for, const std::string& filename);
-	FileRequestMessage() = default;
 public:
 	inline std::string For();
 	inline std::string Filename();
@@ -74,7 +74,6 @@ private:
 	std::string m_username;
 
 	explicit LogoutMessage(const std::string& username);
-	LogoutMessage() = default;
 public:
 	inline std::string Username();
 
@@ -88,7 +87,6 @@ private:
 	std::string m_to;
 
 	RequestConversationMsgs(const std::string& _for, const std::string& to);
-	RequestConversationMsgs() = default;
 public:
 	inline std::string For();
 	inline std::string To();
@@ -102,11 +100,11 @@ private:
 	std::string m_for;
 	
 	explicit RequestConversationLists(const std::string& _for);
-	RequestConversationLists() = default;
 public:
 	inline std::string For();
 
 	static RequestConversationLists ParseRequest(const std::string& msg);
+	static string MakeResponse(std::vector<std::string> listOfUsers);
 };
 
 class MessageToUser : public MessageBase
@@ -119,7 +117,6 @@ private:
 	std::string m_status;
 
 	MessageToUser(const std::string& from, const std::string& to, const std::string& message, const std::string& date, const std::string& status);
-	MessageToUser() = default;
 public:
 	inline std::string From();
 	inline std::string To();
@@ -128,6 +125,12 @@ public:
 	inline std::string Status();
 
 	static MessageToUser ParseMessageToUser(const std::string& msg);
+	std::string MakeQueries();
+	std::string MakeResponse();
+	std::string InvalidMessageResponse();
+	std::string UserDNEResponse();
+	MessageToUser GenerateMessageForToUser();
+	std::string MakeMessage();
 };
 
 class LoginMessage : public MessageBase
@@ -137,10 +140,12 @@ private:
 	std::string m_password;
 
 	LoginMessage(const std::string& username, const std::string& password);
-	LoginMessage() = default;
 public:
+
 	inline std::string Username();
 	inline std::string Password();
+
+	inline bool IsValid();
 
 	static LoginMessage ParseLoginMsg(const std::string& msg);
 };
@@ -148,13 +153,17 @@ public:
 class MessageBase
 {
 private:
-	message_t m_code;
-	bool m_valid;
+	message_t m_code{ message_t::INVALID };
+	bool m_valid{ false };
 public:
+	MessageBase(const MessageBase& mb);
+
 	static message_t GetMessageType(const std::string& msg);
 
 	inline bool IsValid();
 	inline message_t Code();
+
+	static std::string InvalidMessageResponse();
 protected:
 	MessageBase(message_t code = message_t::INVALID, bool isValid = false);
 };

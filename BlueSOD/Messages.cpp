@@ -1,6 +1,7 @@
 #include "Messages.h"
 
 using std::string;
+using std::vector;
 
 LoginMessage::LoginMessage(const std::string& username, const std::string& password)
 	: MessageBase(message_t::LOGIN, true), m_username{username}, m_password{password}
@@ -16,12 +17,17 @@ std::string LoginMessage::Password()
 	return m_password;
 }
 
+inline bool LoginMessage::IsValid()
+{
+	return ((MessageBase*) this)->IsValid();
+}
+
 LoginMessage LoginMessage::ParseLoginMsg(const string& msg)
 {
 	if (msg.substr(0, 3) != LOGIN_MSG)
 		return LoginMessage{};
 
-	/*Username field*/
+	/*GetUsername field*/
 	string field = USERNAME_FIELD;
 	int username_field_pos = msg.find(field);
 	int delimiter = msg.find(DELIMITER, 4);
@@ -170,7 +176,7 @@ RequestConversationLists RequestConversationLists::ParseRequest(const string& ms
 	if (msg.substr(0, 3) != REQ_CONVO_LISTS)
 		return RequestConversationLists();
 
-	/*Username field*/
+	/*GetUsername field*/
 	string field = USERNAME_FIELD;
 	int username_field_pos = msg.find(field);
 	int delimiter = msg.find(DELIMITER, 4);
@@ -182,6 +188,21 @@ RequestConversationLists RequestConversationLists::ParseRequest(const string& ms
 		return RequestConversationLists();
 
 	return RequestConversationLists{username};
+}
+
+string RequestConversationLists::MakeResponse(vector<string> listOfUsers)
+{
+	string msg{REQ_CONVO_LISTS_RESPONSE};
+	msg += DELIMITER;
+	for (auto username : listOfUsers)
+	{
+		msg += USERNAME_FIELD;
+		msg += username;
+		msg += DELIMITER;
+	}
+	msg += END_OF_MSG;
+
+	return msg;
 }
 
 RequestConversationMsgs::RequestConversationMsgs(const string& _for, const string& to)
@@ -239,7 +260,7 @@ LogoutMessage LogoutMessage::ParseMessage(const string& msg)
 	if (msg.substr(0, 3) != LOGOUT_MSG)
 		return LogoutMessage();
 
-	/*Username field*/
+	/*GetUsername field*/
 	string field = USERNAME_FIELD;
 	int username_field_pos = msg.find(field);
 	int delimiter = msg.find(DELIMITER, 4);
@@ -273,7 +294,7 @@ FileRequestMessage FileRequestMessage::ParseMessage(const string& msg)
 	if (msg.substr(0, 3) != REQ_FILE)
 		return FileRequestMessage();
 
-	/*Username field*/
+	/*GetUsername field*/
 	string field = USERNAME_FIELD;
 	int username_field_pos = msg.find(field);
 	int delimiter = msg.find(DELIMITER, 4);
