@@ -9,6 +9,7 @@
 
 #define USERNAME_COL "Username"
 #define PASSWORD_COL "Password"
+#define ID_COL       "Id"
 #define USER_INFO_DB "user.db"
 
 //#define UNIQUE_PTR_DEBUG
