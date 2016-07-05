@@ -5,7 +5,7 @@ using std::mutex;
 using std::lock_guard;
 
 template<typename T>
-T& TS_Deque<T>::Back()
+T& ThreadSafeDEQueue<T>::Back()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -13,7 +13,7 @@ T& TS_Deque<T>::Back()
 }
 
 template<typename T>
-inline T&& TS_Deque<T>::MoveBack()
+inline T&& ThreadSafeDEQueue<T>::MoveBack()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -21,7 +21,7 @@ inline T&& TS_Deque<T>::MoveBack()
 }
 
 template<typename T>
-void TS_Deque<T>::PushBack(const T& e)
+void ThreadSafeDEQueue<T>::PushBack(const T& e)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -29,7 +29,7 @@ void TS_Deque<T>::PushBack(const T& e)
 }
 
 template<typename T>
-void TS_Deque<T>::PushBack(T&& e)
+void ThreadSafeDEQueue<T>::PushBack(T&& e)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -37,7 +37,7 @@ void TS_Deque<T>::PushBack(T&& e)
 }
 
 template<typename T>
-void TS_Deque<T>::PopBack()
+void ThreadSafeDEQueue<T>::PopBack()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -45,7 +45,7 @@ void TS_Deque<T>::PopBack()
 }
 
 template<typename T>
-T& TS_Deque<T>::Front()
+T& ThreadSafeDEQueue<T>::Front()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -53,7 +53,7 @@ T& TS_Deque<T>::Front()
 }
 
 template<typename T>
-inline T&& TS_Deque<T>::MoveFront()
+inline T&& ThreadSafeDEQueue<T>::MoveFront()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -61,7 +61,7 @@ inline T&& TS_Deque<T>::MoveFront()
 }
 
 template<typename T>
-void TS_Deque<T>::PushFront(const T & e)
+void ThreadSafeDEQueue<T>::PushFront(const T & e)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -69,7 +69,7 @@ void TS_Deque<T>::PushFront(const T & e)
 }
 
 template<typename T>
-void TS_Deque<T>::PushFront(T && e)
+void ThreadSafeDEQueue<T>::PushFront(T && e)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -77,7 +77,7 @@ void TS_Deque<T>::PushFront(T && e)
 }
 
 template<typename T>
-void TS_Deque<T>::PopFront()
+void ThreadSafeDEQueue<T>::PopFront()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -85,7 +85,7 @@ void TS_Deque<T>::PopFront()
 }
 
 template<typename T>
-int TS_Deque<T>::Size()
+int ThreadSafeDEQueue<T>::Size()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -93,7 +93,7 @@ int TS_Deque<T>::Size()
 }
 
 template<typename T>
-bool TS_Deque<T>::Empty()
+bool ThreadSafeDEQueue<T>::Empty()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -101,7 +101,7 @@ bool TS_Deque<T>::Empty()
 }
 
 template<typename T>
-T& TS_Deque<T>::operator[](int n)
+T& ThreadSafeDEQueue<T>::operator[](int n)
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -109,7 +109,7 @@ T& TS_Deque<T>::operator[](int n)
 }
 
 template<typename T>
-typename std::deque<T>::const_iterator TS_Deque<T>::begin()
+typename std::deque<T>::const_iterator ThreadSafeDEQueue<T>::begin()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -117,7 +117,7 @@ typename std::deque<T>::const_iterator TS_Deque<T>::begin()
 }
 
 template<typename T>
-typename std::deque<T>::const_iterator TS_Deque<T>::end()
+typename std::deque<T>::const_iterator ThreadSafeDEQueue<T>::end()
 {
 	lock_guard<mutex> lck(m_mutex);
 

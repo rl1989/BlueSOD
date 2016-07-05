@@ -4,21 +4,18 @@
 
 /*
 	A thread safe stack that allows the ServerManager to communicate with the thread that authenticates
-	users. The producer (ServerManager) will push the object into the TS_Queue object and the 
+	users. The producer (ServerManager) will push the object into the ThreadSafeDEQueue object and the 
 	consumer (the other thread) will pop objects to retrieve them.
 
 	The consumer will wait in a loop checking Empty() or Size() to see if there are objects available.
 */
 template<typename T>
-class TS_Deque
+class ThreadSafeDEQueue
 {
 private:
-	std::mutex m_mutex;
-	std::deque<T> m_deque;
+	std::mutex m_mutex{};
+	std::deque<T> m_deque{};
 public:
-	TS_Deque() = default;
-	~TS_Deque() = default;
-
 	T& Back();
 	T&& MoveBack();
 	void PushBack(const T& e);
