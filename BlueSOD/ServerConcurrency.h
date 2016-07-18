@@ -35,5 +35,11 @@ public:
 
 	const T& RetrieveObject();
 
+	bool TryLock();
+	void Lock();
+	void LockChange(const T& o);
+	void LockChange(T&& o);
+	void Unlock();
+
 	T&& MoveObject();
 };

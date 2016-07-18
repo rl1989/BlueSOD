@@ -106,6 +106,40 @@ inline const T& ThreadSafe<T>::RetrieveObject()
 }
 
 template<typename T>
+bool ThreadSafe<T>::TryLock()
+{
+	return m_mutex.try_lock();
+}
+
+template<typename T>
+void ThreadSafe<T>::Lock()
+{
+	m_mutex.lock();
+}
+
+template<typename T>
+void ThreadSafe<T>::LockChange(const T& o)
+{
+	m_mutex.lock();
+	
+	m_object = o;
+}
+
+template<typename T>
+void ThreadSafe<T>::LockChange(T&& o)
+{
+	m_mutex.lock();
+
+	m_object = o;
+}
+
+template<typename T>
+void ThreadSafe<T>::Unlock()
+{
+	m_mutex.unlock();
+}
+
+template<typename T>
 T&& ThreadSafe<T>::MoveObject()
 {
 	lock_guard<mutex> lck(m_mutex);
