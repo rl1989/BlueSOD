@@ -36,12 +36,13 @@ private:
 	int m_sslStatus{SSL_ERROR_NONE};
 	int m_socketStatus{SOCKET_OK};
 	int m_bytesSent{ 0 };
-	std::shared_mutex m_sharedMutex{};
 
 public:
-	ConnectionInfo() = default;
+	ConnectionInfo();
 	explicit ConnectionInfo(SOCKET socket);
 	ConnectionInfo(SOCKET socket, SSL* ssl);
+	ConnectionInfo(const ConnectionInfo& ci);
+	ConnectionInfo& operator=(const ConnectionInfo& ci);
 	ConnectionInfo(ConnectionInfo&& move);
 	ConnectionInfo& operator=(ConnectionInfo&& move);
 	~ConnectionInfo();

@@ -3,6 +3,9 @@
 using std::move;
 using std::chrono::steady_clock;
 
+ConnectionInfo::ConnectionInfo()
+{}
+
 ConnectionInfo::ConnectionInfo(SOCKET socket)
 	: m_ssl{nullptr},
 	m_socket{socket}
@@ -12,6 +15,25 @@ ConnectionInfo::ConnectionInfo(SOCKET socket, SSL* ssl)
 	: m_socket{socket},
 	m_ssl{ssl}
 {}
+
+ConnectionInfo::ConnectionInfo(const ConnectionInfo& ci)
+	: m_socket{ci.m_socket},
+	m_ssl{ci.m_ssl},
+	m_sslStatus	{ci.m_sslStatus},
+	m_socketStatus{ci.m_socketStatus},
+	m_bytesSent{ci.m_bytesSent}
+{}
+
+ConnectionInfo& ConnectionInfo::operator=(const ConnectionInfo& ci)
+{
+	m_socket = ci.m_socket;
+	m_ssl = ci.m_ssl;
+	m_sslStatus = ci.m_sslStatus;
+	m_socketStatus = ci.m_socketStatus;
+	m_bytesSent = ci.m_bytesSent;
+
+	return *this;
+}
 
 ConnectionInfo::ConnectionInfo(ConnectionInfo&& move)
 	: m_socket{move.Socket()},
