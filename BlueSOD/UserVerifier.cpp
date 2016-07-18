@@ -73,14 +73,14 @@ void UserVerifier::Run(ServerState state)
 								ci.Shutdown();
 								break;
 							case ConnectionState::RECEIVED:
-								LoginMessage message = LoginMessage::ParseLoginMsg(msg);
+								LoginMessage* message = LoginMessage::ParseLoginMsg(msg);
 
-								if (message.IsValid())
+								if (message->IsValid())
 								{
 									int id;
-									if (VerifyLoginInformation(message.Username(), message.Password(), &id))
+									if (VerifyLoginInformation(message->Username(), message->Password(), &id))
 									{
-										ClientInfo client{ move(ci), message.Username(), id };
+										ClientInfo client{ move(ci), message->Username(), id };
 										AddVerifiedConnectionToBack(move(client));
 									}
 									else
@@ -93,6 +93,7 @@ void UserVerifier::Run(ServerState state)
 									AddInvalidConnection(move(ci));
 								}
 								
+								delete message;
 								break;
 						}
 					}
