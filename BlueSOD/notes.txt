@@ -1,23 +1,17 @@
 Working on Server.
-	-Processing the different types of messages.
-		-Request Conversation List message.
-
-After a user logs in, they stay logged in until the server stops receiving pings every XX number of minutes. When the
-server receives a message intended for the user, the server will attempt to send it. If it fails to send, it will be logged
-into the database. When the user logs back in, the messages in the database intended for that user will be used to populate
-a queue and will be sent until there are no more.
-
-
+	-Need to make classes for message_t's: CONVERSATION_MSGS, CONVERSATION_LIST, FILE, USER_INFO.
 
 FOR LATER:
+Think about placing a lock in front() in ThreadSafeQueue and an unlock in popfront() to reduce locking/unlocking of mutex.
+
 Determine how to handle connection time outs. i.e. How long a connection should be idle before the user is timed out.
 
 Separate ServerConnections into different files.
 
-Optimize ClientInfoList add, remove and search features.
-	-Between vector and list
-		*List seems to be more efficient for insertions, but may be slower for searches. Need to figure out which one is more
-		 important.
-		*It should not be necessary to ever shrink the vector to conserve memory. Not much memory is used by the vector.
-		 This will help speed up any future additions to the vector as well.
-	-Sorted insert in order to use binary search
+Optimize searching.
+
+Change message parsing to include each user's database IDs.
+
+The incoming and outgoing message queues should be combined into one queue. Any time a message is placed there, a function delegate
+should be called that will notify the appropriate target. This may also reduce the need for a queue per connection in favor of one
+"global" queue.
