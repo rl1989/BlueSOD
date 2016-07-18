@@ -6,6 +6,38 @@ using std::lock_guard;
 using std::move;
 
 template<typename T>
+void ThreadSafeVector<T>::reserve(int space)
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	m_vector.reserve(space);
+}
+
+template<typename T>
+T& ThreadSafeVector<T>::elem(int i)
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	return m_vector.at(i);
+}
+
+template<typename T>
+T & ThreadSafeVector<T>::operator[](int i)
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	return m_vector[i];
+}
+
+template<typename T>
+void ThreadSafeVector<T>::clear()
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	m_vector.clear();
+}
+
+template<typename T>
 inline void ThreadSafeVector<T>::push_back(T&& val)
 {
 	lock_guard<mutex> lck(m_mutex);
@@ -30,7 +62,7 @@ inline int ThreadSafeVector<T>::size() const noexcept
 }
 
 template<typename T>
-inline vector<T>::iterator ThreadSafeVector<T>::end()
+inline typename vector<T>::iterator ThreadSafeVector<T>::end()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -38,7 +70,7 @@ inline vector<T>::iterator ThreadSafeVector<T>::end()
 }
 
 template<typename T>
-inline vector<T>::const_iterator ThreadSafeVector<T>::end() const
+inline typename vector<T>::const_iterator ThreadSafeVector<T>::end() const
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -46,7 +78,7 @@ inline vector<T>::const_iterator ThreadSafeVector<T>::end() const
 }
 
 template<typename T>
-inline vector<T>::iterator ThreadSafeVector<T>::begin()
+inline typename vector<T>::iterator ThreadSafeVector<T>::begin()
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -54,7 +86,7 @@ inline vector<T>::iterator ThreadSafeVector<T>::begin()
 }
 
 template<typename T>
-inline vector<T>::const_iterator ThreadSafeVector<T>::begin() const
+inline typename vector<T>::const_iterator ThreadSafeVector<T>::begin() const
 {
 	lock_guard<mutex> lck(m_mutex);
 
@@ -62,9 +94,54 @@ inline vector<T>::const_iterator ThreadSafeVector<T>::begin() const
 }
 
 template<typename T>
-inline vector<T>::iterator ThreadSafeVector<T>::erase(vector<T>::const_iterator position)
+inline typename vector<T>::iterator ThreadSafeVector<T>::erase(typename vector<T>::const_iterator position)
 {
 	lock_guard<mutex> lck(m_mutex);
 
 	return m_vector.erase(position);
+}
+
+template<typename T>
+inline ThreadSafeVector<T>::ThreadSafeVector(int size)
+	: m_mutex{},
+	m_vector{ size }
+{}
+
+template<typename T>
+inline ThreadSafeVector<T>::ThreadSafeVector()
+	: m_mutex{},
+	m_vector{}
+{}
+
+template<typename T>
+inline ThreadSafeVector<T>::ThreadSafeVector(const ThreadSafeVector& tsv)
+	: m_mutex{},
+	m_vector{ tsv.m_vector }
+{}
+
+template<typename T>
+inline ThreadSafeVector<T>& ThreadSafeVector<T>::operator=(const ThreadSafeVector<T>& tsv)
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	m_vector = tsv.m_vector;
+
+	return *this;
+}
+
+template<typename T>
+inline ThreadSafeVector<T>::ThreadSafeVector(ThreadSafeVector<T>&& tsv)
+	: m_mutex{ move(tsv.m_mutex) },
+	m_vector{ move(tsv.m_vector) }
+{}
+
+template<typename T>
+inline ThreadSafeVector<T>& ThreadSafeVector<T>::operator=(ThreadSafeVector<T>&& tsv)
+{
+	lock_guard<mutex> lck(m_mutex);
+
+	m_mutex = move(tsv.m_mutex);
+	m_vector = move(tsv.m_vector);
+
+	return *this;
 }

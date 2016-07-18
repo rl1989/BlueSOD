@@ -9,20 +9,24 @@ private:
 	std::vector<T> m_vector{};
 	std::mutex m_mutex{};
 public:
-	ThreadSafeVector() = default;
-	ThreadSafeVector(const ThreadSafeVector<T>& tsv);
+	explicit ThreadSafeVector(int size);
+	ThreadSafeVector();
+	ThreadSafeVector(const ThreadSafeVector& tsv);
 	ThreadSafeVector& operator=(const ThreadSafeVector<T>& tsv);
 	ThreadSafeVector(ThreadSafeVector<T>&& tsv);
 	ThreadSafeVector& operator=(ThreadSafeVector<T>&& tsv);
-	ThreadSafeVector(const T& t);
-	ThreadSafeVector(T&& t);
 
+	void reserve(int space);
+	T& elem(int i);
+	T& operator[](int i);
+	void clear();
 	void push_back(T&& val);
 	bool empty() const noexcept;
 	int size() const noexcept;
-	std::vector<T>::iterator end();
-	std::vector<T>::const_iterator end() const;
-	std::vector<T>::iterator begin();
-	std::vector<T>::const_iterator begin() const;
-	std::vector<T>::iterator erase(std::vector<T>::const_iterator position);
+
+	typename std::vector<T>::iterator end();
+	typename std::vector<T>::const_iterator end() const;
+	typename std::vector<T>::iterator begin();
+	typename std::vector<T>::const_iterator begin() const;
+	typename std::vector<T>::iterator erase(typename std::vector<T>::const_iterator position);
 };
