@@ -14,6 +14,8 @@ using std::make_unique;
 using std::array;
 using std::string;
 
+const string MESSAGES_TABLE = "";
+
 int SQLiteDb::ExecuteStatement(const string& statement)
 {
 	sqlite3_finalize(m_sqlStatement);
@@ -21,6 +23,7 @@ int SQLiteDb::ExecuteStatement(const string& statement)
 	string cleanedStmt = CleanStatement(statement);
 	int res = sqlite3_prepare_v2(m_sqlObject, cleanedStmt.c_str(), cleanedStmt.size(), &m_sqlStatement, nullptr);
 
+	/*The statement was bad, so notify. Anything other than SQLITE_OK is bad.*/
 	if (res != SQLITE_OK)
 		return res;
 
@@ -38,7 +41,7 @@ int SQLiteDb::ExecuteStatement(const string& statement)
 }
 
 int SQLiteDb::GetColumnInt(int col)
-{
+{ 
 	return sqlite3_column_int(m_sqlStatement, col);
 }
 
@@ -51,6 +54,11 @@ string SQLiteDb::GetColumnTxt(int col)
 double SQLiteDb::GetColumnDouble(int col)
 {
 	return sqlite3_column_double(m_sqlStatement, col);
+}
+
+time_t SQLiteDb::GetColumnTime(int col)
+{
+	return static_cast<time_t>(sqlite3_column_int64(m_sqlStatement, col));
 }
 
 int SQLiteDb::StepNextRow()
@@ -73,6 +81,11 @@ bool SQLiteDb::Open(const string& dbLoc)
 int SQLiteDb::ColumnCount()
 {
 	return m_numberOfColumns;
+}
+
+string SQLiteDb::MessagesTableName(const string& username)
+{
+	return username + MESSAGES_TABLE;
 }
 
 bool SQLiteDb::OpenDb()
