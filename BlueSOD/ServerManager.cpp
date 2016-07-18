@@ -75,7 +75,6 @@ bool ServerManager::Reset()
 {
 	Shutdown();
 	Init();
-	closesocket(m_listenerSocket);
 	if (!OpenForConnections(GetPortNumber()))
 	{
 		string errorMsg = string();
@@ -89,7 +88,6 @@ bool ServerManager::Reset()
 
 		return false;
 	}
-	SetState(ServerState::RUNNING);
 	return true;
 }
 
@@ -178,6 +176,7 @@ bool ServerManager::Run(ServerState state)
 			case ServerState::RESET:
 				if (!Reset())
 					return false;
+				SetState(ServerState::RUNNING);
 				break;
 
 				/*Connect with any incoming clients.*/
@@ -210,10 +209,26 @@ bool ServerManager::Run(ServerState state)
 						case ConnectionState::WANT_READ:
 						case ConnectionState::WANT_WRITE:
 							/*The message was not sent, so re-add it to the queue.*/
-							m_userVerifier.AddVerifiedConnectionToBack(move(verified));
+							m_userVerifier.AddVerifiedConnectionToBack(verified);
 							break;
 						case ConnectionState::SENT:
-							m_server.AddClient(move(verified));
+							Server* server = nullptr;
+							for (auto it = m_servers.begin(); it != m_servers.end(); it++)
+							{
+								if (it->first->NumberOfClients() < 64)
+								{
+									server = it->first;
+									break;
+								}
+							}
+							if (server == nullptr)
+							{
+								server = new Server(&m_masterList);
+								thread t{ StartServer, server, curState };
+								m_servers.push_back({ server, move(t) });
+							}
+							server->AddClient(verified);
+							m_masterList.push_back({ verified.GetId(), server });
 							break;
 						case ConnectionState::ERR:
 							verified.CloseConnection();
@@ -231,7 +246,7 @@ bool ServerManager::Run(ServerState state)
 						case ConnectionState::WANT_WRITE:
 						case ConnectionState::WANT_READ:
 							/*Message not sent, re-add to the queue.*/
-							m_userVerifier.AddRejectedConnection(move(rejected));
+							m_userVerifier.AddRejectedConnection(rejected);
 							break;
 						default:
 							rejected.Shutdown();
@@ -259,10 +274,9 @@ bool ServerManager::Run(ServerState state)
 				break;
 		}
 
-		m_server.SetState(curState);
-		m_userVerifier.SetState(curState);
-
 		curState = GetState();
+		SetServersStates(curState);
+		m_userVerifier.SetState(curState);
 	}
 
 	m_runMutex.unlock();
@@ -273,13 +287,20 @@ bool ServerManager::Run(ServerState state)
 inline void ServerManager::Shutdown()
 {
 	SetState(ServerState::OFF);
-	//m_server.SetState(ServerState::OFF);
+	SetServersStates(ServerState::OFF);
 	m_userVerifier.SetState(ServerState::OFF);
 
-	if (m_serverThread.joinable())
-		m_serverThread.join();
+	for (auto it = m_servers.begin(); it != m_servers.end(); it++)
+	{
+		if (it->second.joinable())
+			it->second.join();
+		delete it->first;
+		it->first = nullptr;
+	}
+	m_servers.clear();
 	if (m_uvThread.joinable())
 		m_uvThread.join();
+	m_masterList.clear();
 	Cleanup();
 }
 
@@ -471,8 +492,19 @@ void ServerManager::CleanupWSA()
 
 void ServerManager::CloseConnections()
 {
-	if (m_listenerSocket)
+	if (m_listenerSocket != INVALID_SOCKET)
+	{
 		closesocket(m_listenerSocket);
+		m_listenerSocket = INVALID_SOCKET;
+	}
+}
+
+void ServerManager::SetServersStates(ServerState state)
+{
+	for (auto it = m_servers.begin(); it != m_servers.end(); it++)
+	{
+		it->first->SetState(state);
+	}
 }
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data)

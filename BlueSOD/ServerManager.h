@@ -4,6 +4,7 @@
 #include <string>
 #include <time.h>
 #include <thread>
+#include <utility>
 #include "Server.h"
 #include "ServerConcurrency.h"
 #include "ServerConnections.h"
@@ -12,6 +13,8 @@
 #include "TS_Deque.h"
 #include "LogManager.h"
 #include "Messages.h"
+#include "ThreadSafeVector.h"
+#include "ThreadSafeList.h"
 
 extern void thread_cleanup();
 extern void thread_setup();
@@ -31,6 +34,8 @@ void StartUserVerifier(UserVerifier* uv, ServerState state);
 #define PASSWORD_FILE "password.txt"
 //Location of user DB
 #define USER_DB "G:\\Ricky\\Documents\\Programming\\BlueSOD\\Databases\\UserInfo.db"
+
+#define DEFAULT_VECTOR_SIZE 20
 
 /*
 	The ServerManager will manage initial connections. That is, when it receives a connection request from
@@ -63,9 +68,7 @@ private:
 		to be thread safe.
 	*/
 	ThreadSafe<ServerState> m_tsState;
-	//The Server. This is where connections will be passed to once they are initialized and the
-	//user is logged in.
-	//Server m_server;
+
 	//This guarantees that Run() is not called more than once at a time. Calling Run()
 	//from more than one thread will cause problems. However, this may be unnecessary.
 	mutex m_runMutex;
@@ -73,9 +76,11 @@ private:
 		Verifies user login information on a separate thread.
 	*/
 	UserVerifier m_userVerifier;
-	Server m_server;
+	std::vector<std::pair<Server*,std::thread>> m_servers;
 	std::thread m_serverThread;
 	std::thread m_uvThread;
+
+	ThreadSafeList<std::pair<int, Server*>> m_masterList{};
 
 public:
 	//The default constructor.
@@ -91,14 +96,9 @@ public:
 		m_bWSA{ false },
 		m_bOpenSSL{ false },
 		m_tsState{ ServerState::OFF },
-		//m_server{},
 		m_runMutex{},
 		m_userVerifier{ dbName }
-	{
-		//m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
-		m_uvThread = std::thread(StartUserVerifier, &m_userVerifier, ServerState::OFF);
-		m_serverThread = std::thread(StartServer, &m_server, ServerState::OFF);
-	}
+	{}
 	~ServerManager();
 	//Run the ServerManager with the specified state.
 	bool Run(ServerState state = ServerState::RUNNING);
@@ -201,9 +201,8 @@ private:
 		Close any connections.
 	*/
 	void CloseConnections();
-	/*
-		Send a message to the client.
-	*/
+	
+	void SetServersStates(ServerState state);
 };
 
 int PasswordCallBack(char* buffer, int sizeOfBuffer, int rwflag, void* data);
